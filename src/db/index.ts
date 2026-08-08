@@ -1,8 +1,9 @@
 // =====================================================================
 // src/db/index.ts
 // Cliente de conexion a MySQL usando mysql2 + Drizzle.
-// Sin dependencias externas de pago: funciona igual en Vercel (pruebas)
-// que autohospedado en la workstation (produccion).
+// SSL configurado explicitamente (Aiven lo exige) en vez de depender
+// del parametro "ssl-mode" en la URL, que mysql2 no reconoce y solo
+// genera un warning (dejandolo asi podria fallar en versiones futuras).
 // =====================================================================
  
 import { drizzle } from "drizzle-orm/mysql2";
@@ -14,6 +15,14 @@ import * as schema from "./schema";
 // pruebas; en produccion self-hosted puedes subirlo si hace falta.
 const poolConnection = mysql.createPool({
   uri: process.env.DATABASE_URL,
+  ssl: {
+    // Aiven usa un certificado valido pero de una CA que Node no
+    // reconoce por defecto en este modo simple. Para pruebas basta con
+    // esto; en produccion self-hosted, si conectas a tu propio MySQL
+    // local, probablemente no necesites SSL en absoluto (quita este
+    // bloque completo si tu MySQL de produccion no lo exige).
+    rejectUnauthorized: false,
+  },
   connectionLimit: 5,
 });
  
