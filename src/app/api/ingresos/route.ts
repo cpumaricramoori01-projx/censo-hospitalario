@@ -1,102 +1,155 @@
-// src/app/api/ingresos/route.ts
-// Crea un nuevo ingreso de paciente.
-// - Si el HC no existe en pacientes_ref, lo crea (con los datos manuales
-//   que envie el formulario).
-// - Crea el registro en "ingresos".
-// - Marca la cama correspondiente como "ocupada".
-
+// src/app/api/ingresos/route.ts (v3)
+// Igual que v2, pero al crear un paciente nuevo tambien captura
+// sexo y fecha de nacimiento (necesarios para los reportes de censo
+// desglosados por sexo). correo/telefono/direccion quedan fuera a
+// proposito: llegaran sincronizados del HIS mas adelante, no se
+// capturan manualmente aqui.
+ 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  ingresos,
+  camas,
+  pacientesRef,
+  diagnosticosIngreso,
+} from "@/db/schema";
 import { db } from "@/db";
-import { ingresos, camas, pacientesRef } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
+ 
+type DiagnosticoInput = {
+  cie10Codigo?: string;
+  cie10Descripcion: string;
+};
+ 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
       hc,
+      dni,
       nombres,
-      apellidos,
+      apellidoPaterno,
+      apellidoMaterno,
+      sexo,
+      fechaNacimiento,
       camaId,
-      diagnostico,
       medico,
+      tipoIngreso,
+      servicioOrigenId,
+      financiamiento,
+      usaVentilador,
+      usaOxigeno,
+      tieneProblemaJudicial,
+      tieneProblemaSocial,
+      notasEstancia,
+      diagnosticos,
     }: {
       hc: string;
+      dni?: string;
       nombres?: string;
-      apellidos?: string;
+      apellidoPaterno?: string;
+      apellidoMaterno?: string;
+      sexo?: "M" | "F";
+      fechaNacimiento?: string; // "YYYY-MM-DD"
       camaId: number;
-      diagnostico?: string;
       medico?: string;
+      tipoIngreso: "normal" | "transferencia";
+      servicioOrigenId?: number;
+      financiamiento?: string;
+      usaVentilador?: boolean;
+      usaOxigeno?: boolean;
+      tieneProblemaJudicial?: boolean;
+      tieneProblemaSocial?: boolean;
+      notasEstancia?: string;
+      diagnosticos: DiagnosticoInput[];
     } = body;
-
+ 
     if (!hc || !camaId) {
       return NextResponse.json(
         { error: "Faltan campos obligatorios: hc y camaId" },
         { status: 400 }
       );
     }
-
-    // 1. Verifica si el paciente ya existe en pacientes_ref
+    if (!diagnosticos || diagnosticos.length === 0) {
+      return NextResponse.json(
+        { error: "Debes indicar al menos un diagnóstico" },
+        { status: 400 }
+      );
+    }
+    if (tipoIngreso === "transferencia" && !servicioOrigenId) {
+      return NextResponse.json(
+        { error: "Un ingreso por transferencia debe indicar el servicio de origen" },
+        { status: 400 }
+      );
+    }
+ 
     const pacienteExistente = await db
       .select()
       .from(pacientesRef)
       .where(eq(pacientesRef.hc, hc));
-
+ 
     if (pacienteExistente.length === 0) {
-      // No existe: lo creamos con los datos que vinieron del formulario
-      if (!nombres || !apellidos) {
+      if (!nombres || !apellidoPaterno || !sexo) {
         return NextResponse.json(
           {
             error:
-              "El paciente no existe. Debes indicar nombres y apellidos para crearlo.",
+              "El paciente no existe. Debes indicar al menos nombres, apellido paterno y sexo para crearlo.",
           },
           { status: 400 }
         );
       }
       await db.insert(pacientesRef).values({
         hc,
+        dni,
         nombres,
-        apellidos,
+        apellidoPaterno,
+        apellidoMaterno,
+        sexo,
+        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
         origenDato: "manual",
         fechaActualizacion: new Date(),
       });
     }
-
-    // 2. Verifica que la cama siga libre (evita condiciones de carrera basicas)
-    const camaActual = await db
-      .select()
-      .from(camas)
-      .where(eq(camas.id, camaId));
-
+ 
+    const camaActual = await db.select().from(camas).where(eq(camas.id, camaId));
     if (camaActual.length === 0) {
       return NextResponse.json({ error: "Cama no encontrada" }, { status: 404 });
     }
     if (camaActual[0].estado !== "libre") {
       return NextResponse.json(
-        { error: "Esa cama ya no esta libre, elige otra" },
+        { error: "Esa cama ya no está libre, elige otra" },
         { status: 409 }
       );
     }
-
-    // 3. Crea el ingreso
+ 
     const resultIngreso = await db.insert(ingresos).values({
       hc,
       camaId,
       fechaIngreso: new Date(),
-      diagnostico,
       medico,
+      tipoIngreso,
+      servicioOrigenId: tipoIngreso === "transferencia" ? servicioOrigenId : null,
+      financiamiento,
+      usaVentilador: !!usaVentilador,
+      usaOxigeno: !!usaOxigeno,
+      tieneProblemaJudicial: !!tieneProblemaJudicial,
+      tieneProblemaSocial: !!tieneProblemaSocial,
+      notasEstancia,
     });
-
-    // 4. Marca la cama como ocupada
-    await db
-      .update(camas)
-      .set({ estado: "ocupada" })
-      .where(eq(camas.id, camaId));
-
-    return NextResponse.json(
-      { id: resultIngreso[0].insertId },
-      { status: 201 }
+ 
+    const ingresoId = resultIngreso[0].insertId;
+ 
+    await db.insert(diagnosticosIngreso).values(
+      diagnosticos.map((d, i) => ({
+        ingresoId,
+        orden: i + 1,
+        cie10Codigo: d.cie10Codigo,
+        cie10Descripcion: d.cie10Descripcion,
+      }))
     );
+ 
+    await db.update(camas).set({ estado: "ocupada" }).where(eq(camas.id, camaId));
+ 
+    return NextResponse.json({ id: ingresoId }, { status: 201 });
   } catch (err) {
     console.error(err);
     return NextResponse.json(
