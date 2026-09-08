@@ -2,6 +2,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Servicio = { id: number; nombre: string };
@@ -289,13 +290,19 @@ export default function NuevoIngresoPage() {
 
   return (
     <div className="form-page">
-      <div className="page-heading">
-        <h1>Registrar ingreso de paciente</h1>
-        <p>
-          Registra una nueva hospitalización y asigna la cama
-          correspondiente.
-        </p>
-      </div>
+      <header className="page-heading page-heading-with-action">
+        <div>
+          <p className="page-kicker">Admisión hospitalaria</p>
+          <h1>Registrar ingreso</h1>
+          <p>
+            Registra una nueva hospitalización y asigna la cama correspondiente.
+          </p>
+        </div>
+
+        <Link href="/" className="page-heading-action">
+          ← Volver al panel
+        </Link>
+      </header>
 
       <div className="form-card">
         {/* 01 UBICACIÓN */}
