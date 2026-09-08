@@ -299,7 +299,7 @@ export default function NuevoIngresoPage() {
           </p>
         </div>
 
-        <Link href="/" className="page-heading-action">
+        <Link href="/panel" className="page-heading-action">
           ← Volver al panel
         </Link>
       </header>
