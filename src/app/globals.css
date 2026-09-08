@@ -517,45 +517,6 @@ body {
    IDENTIDAD DE PÁGINAS
    ========================= */
 
-.landing-intro {
-  margin-bottom: 32px;
-  padding: clamp(28px, 5vw, 48px);
-  border: 1px solid #0b5270;
-  border-radius: 18px;
-  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
-  box-shadow: var(--shadow-md);
-}
-
-.landing-intro h1 {
-  max-width: 720px;
-  margin: 10px 0 0;
-  color: white;
-  font-size: clamp(30px, 4vw, 42px);
-  font-weight: 750;
-  letter-spacing: -0.03em;
-}
-
-.landing-intro > p:last-child {
-  max-width: 650px;
-  margin: 12px 0 0;
-  color: #d9edf3;
-  font-size: 16px;
-}
-
-.page-heading .page-kicker,
-.page-kicker {
-  margin: 0 0 8px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.landing-intro .page-kicker {
-  color: #bde8f5;
-}
-
 .section-heading {
   display: flex;
   align-items: flex-end;
