@@ -100,8 +100,8 @@ export async function POST(request: NextRequest) {
       await db.insert(pacientesRef).values({
         hc,
         dni,
-        nombres: nombres!,
-        apellidoPaterno: apellidoPaterno!,
+        nombres,
+        apellidoPaterno,
         apellidoMaterno,
         sexo,
         fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
