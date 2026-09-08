@@ -1,98 +1,44 @@
 import Link from "next/link";
 
-const modulos = [
-  {
-    titulo: "Registrar ingreso",
-    descripcion:
-      "Registra el ingreso de un paciente, asigna servicio, especialidad y cama, y completa la información clínica correspondiente.",
-    icono: "↓",
-    color: "blue",
-    href: "/ingresos/nuevo",
-  },
-  {
-    titulo: "Registrar egreso",
-    descripcion:
-      "Registra la salida de un paciente internado y actualiza la disponibilidad de su cama.",
-    icono: "↑",
-    color: "green",
-    href: "/egresos/nuevo",
-  },
-  {
-    titulo: "Estructura hospitalaria",
-    descripcion:
-      "Consulta servicios, especialidades y camas, incluyendo su disponibilidad y estado actual.",
-    icono: "⚙",
-    color: "teal",
-    href: "/test",
-  },
+const funciones = [
+  { numero: "01", titulo: "Gestión de ingresos", texto: "Registra hospitalizaciones y asigna la cama correspondiente." },
+  { numero: "02", titulo: "Control de camas", texto: "Consulta la estructura hospitalaria y el estado de cada cama." },
+  { numero: "03", titulo: "Registro de egresos", texto: "Actualiza oportunamente la salida de pacientes hospitalizados." },
 ];
 
-export default function Home() {
+export default function LandingPage() {
   return (
-    <>
-      <section className="page-heading" aria-labelledby="page-title">
-        <p className="page-kicker">Inicio</p>
-        <h1 id="page-title">Panel principal</h1>
-        <p>
-          Selecciona un módulo para gestionar los movimientos y la
-          disponibilidad de camas.
-        </p>
-      </section>
-
-      <section aria-labelledby="modulos-title">
-        <div className="section-heading">
-          <div>
-            <h2 id="modulos-title">Módulos disponibles</h2>
-            <p>Selecciona una opción para continuar.</p>
+    <div className="landing-page">
+      <section className="landing-hero">
+        <div className="landing-hero-copy">
+          <div className="institution-placeholder" aria-label="Espacio para logo institucional">
+            <span className="institution-placeholder-mark">+</span>
+            <span>LOGO INSTITUCIONAL</span>
           </div>
+          <p className="landing-kicker">TRANSFORMACIÓN DIGITAL EN SALUD</p>
+          <h1>Censo<br /><span>Hospitalario</span></h1>
+          <p className="landing-description">Plataforma para la gestión organizada de pacientes hospitalizados, camas y movimientos asistenciales.</p>
+          <Link href="/panel" className="landing-cta"><span>Ingresar al sistema</span><span aria-hidden="true">→</span></Link>
+          <p className="landing-note">Sistema de gestión hospitalaria · Acceso al panel operativo</p>
         </div>
-
-        <div className="dashboard-grid">
-          {modulos.map((modulo) => (
-            <Link
-              key={modulo.href}
-              href={modulo.href}
-              className="dashboard-card"
-            >
-              <div className="dashboard-card-header">
-                <div className={"dashboard-card-icon " + modulo.color}>
-                  {modulo.icono}
-                </div>
-
-                <span className="dashboard-card-arrow" aria-hidden="true">
-                  →
-                </span>
-              </div>
-
-              <h2>{modulo.titulo}</h2>
-              <p>{modulo.descripcion}</p>
-            </Link>
-          ))}
-
-          <article className="dashboard-card dashboard-card--static">
-            <div className="dashboard-card-header">
-              <div className="dashboard-card-icon gray">▣</div>
-              <span className="card-status">Próximamente</span>
-            </div>
-
-            <h2>Consultas y reportes</h2>
-            <p>
-              Aquí se incorporarán el censo diario, reportes, estadísticas e
-              indicadores hospitalarios.
-            </p>
-          </article>
+        <div className="landing-visual" aria-hidden="true">
+          <div className="landing-grid-pattern" />
+          <div className="landing-orbit orbit-one" />
+          <div className="landing-orbit orbit-two" />
+          <div className="landing-center-card">
+            <div className="landing-logo-placeholder"><span>+</span></div>
+            <strong>CENSO</strong><small>HOSPITALARIO</small>
+            <div className="landing-status-line"><span /> Sistema operativo</div>
+          </div>
+          <div className="landing-data-card landing-data-card-one"><span>CAMAS</span><strong>Gestión</strong><small>Disponibilidad en tiempo real</small></div>
+          <div className="landing-data-card landing-data-card-two"><span>PACIENTES</span><strong>Registro</strong><small>Información centralizada</small></div>
         </div>
       </section>
-
-      <section className="info-panel" aria-labelledby="info-title">
-        <h2 id="info-title" className="info-panel-title">
-          Atención institucional
-        </h2>
-        <p className="info-panel-text">
-          Registra cada movimiento de forma oportuna para mantener actualizado
-          el censo hospitalario y la disponibilidad de camas.
-        </p>
+      <section className="landing-features" aria-labelledby="features-title">
+        <div className="landing-section-heading"><p className="page-kicker">Plataforma</p><h2 id="features-title">Una gestión hospitalaria más clara</h2><p>Herramientas diseñadas para apoyar el trabajo diario del personal de salud.</p></div>
+        <div className="landing-feature-grid">{funciones.map((funcion) => <article className="landing-feature-card" key={funcion.numero}><span>{funcion.numero}</span><h3>{funcion.titulo}</h3><p>{funcion.texto}</p></article>)}</div>
       </section>
-    </>
+      <section className="landing-institutional"><div className="landing-secondary-logo"><span>+</span><div><strong>IDENTIDAD INSTITUCIONAL</strong><small>Espacio reservado para logotipo del hospital</small></div></div><p>Preparado para integrar la identidad visual oficial de la institución.</p></section>
+    </div>
   );
 }
