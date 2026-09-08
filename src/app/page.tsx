@@ -35,7 +35,7 @@ export default function LandingPage() {
         </div>
       </section>
       <section className="landing-features" aria-labelledby="features-title">
-        <div className="landing-section-heading"><p className="page-kicker">Plataforma</p><h2 id="features-title">Una gestión hospitalaria más clara</h2><p>Herramientas diseñadas para apoyar el trabajo diario del personal de salud.</p></div>
+        <div className="landing-section-heading"><p className="page-kicker">MÓDULOS DEL SISTEMA</p><h2 id="features-title">Todo lo necesario para la gestión hospitalaria</h2><p>Herramientas para registrar, organizar y consultar la información relacionada con pacientes, ingresos, egresos y disponibilidad de camas.</p></div>
         <div className="landing-feature-grid">{funciones.map((funcion) => <article className="landing-feature-card" key={funcion.numero}><span>{funcion.numero}</span><h3>{funcion.titulo}</h3><p>{funcion.texto}</p></article>)}</div>
       </section>
       <section className="landing-institutional"><div className="landing-secondary-logo"><span>+</span><div><strong>IDENTIDAD INSTITUCIONAL</strong><small>Espacio reservado para logotipo del hospital</small></div></div><p>Preparado para integrar la identidad visual oficial de la institución.</p></section>
