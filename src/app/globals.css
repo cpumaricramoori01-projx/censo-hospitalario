@@ -512,3 +512,123 @@ body {
     transition: none;
   }
 }
+
+/* =========================
+   IDENTIDAD DE PÁGINAS
+   ========================= */
+
+.landing-intro {
+  margin-bottom: 32px;
+  padding: clamp(28px, 5vw, 48px);
+  border: 1px solid #0b5270;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+  box-shadow: var(--shadow-md);
+}
+
+.landing-intro h1 {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: white;
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.landing-intro > p:last-child {
+  max-width: 650px;
+  margin: 12px 0 0;
+  color: #d9edf3;
+  font-size: 16px;
+}
+
+.page-kicker {
+  margin: 0 0 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landing-intro .page-kicker {
+  color: #bde8f5;
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.section-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.page-heading-with-action {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.page-heading-with-action .page-kicker {
+  margin-bottom: 6px;
+}
+
+.page-heading-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.page-heading-action:hover {
+  border-color: #bfd0dc;
+  background: var(--primary-light);
+}
+
+.card-status {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #536171;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dashboard-card--static {
+  cursor: default;
+}
+
+.dashboard-card--static:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border);
+}
+
+@media (max-width: 760px) {
+  .page-heading-with-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
