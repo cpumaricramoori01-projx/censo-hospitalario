@@ -2,6 +2,7 @@
 
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type IngresoActivo = {
@@ -124,13 +125,20 @@ export default function NuevoEgresoPage() {
 
   return (
     <div className="form-page">
-      <div className="page-heading">
-        <h1>Registrar egreso de paciente</h1>
-        <p>
-          Registra la salida del paciente y actualiza automáticamente la
-          disponibilidad de su cama.
-        </p>
-      </div>
+      <header className="page-heading page-heading-with-action">
+        <div>
+          <p className="page-kicker">Gestión de altas</p>
+          <h1>Registrar egreso</h1>
+          <p>
+            Registra la salida del paciente y actualiza automáticamente la
+            disponibilidad de su cama.
+          </p>
+        </div>
+
+        <Link href="/" className="page-heading-action">
+          ← Volver al panel
+        </Link>
+      </header>
 
       <div className="form-card">
         {/* PASO 1 */}
