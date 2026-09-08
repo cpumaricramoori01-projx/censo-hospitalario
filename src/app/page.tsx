@@ -30,14 +30,12 @@ const modulos = [
 export default function Home() {
   return (
     <>
-      <section className="landing-intro" aria-labelledby="page-title">
-        <p className="page-kicker">Sistema de gestión hospitalaria</p>
-
-        <h1 id="page-title">Censo Hospitalario</h1>
-
+      <section className="page-heading" aria-labelledby="page-title">
+        <p className="page-kicker">Inicio</p>
+        <h1 id="page-title">Panel principal</h1>
         <p>
-          Gestiona los ingresos, egresos y la disponibilidad de camas de forma
-          ordenada desde un solo lugar.
+          Selecciona un módulo para gestionar los movimientos y la
+          disponibilidad de camas.
         </p>
       </section>
 
