@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type Servicio = {
@@ -936,14 +937,20 @@ export default function AdministracionHospitalariaPage() {
           CABECERA
           ===================================================== */}
 
-      <div className="page-heading">
-        <h1>Administración hospitalaria</h1>
+      <header className="page-heading page-heading-with-action">
+        <div>
+          <p className="page-kicker">Configuración y consulta</p>
+          <h1>Estructura hospitalaria</h1>
+          <p>
+            Consulta la estructura operativa del sistema: servicios,
+            especialidades y camas.
+          </p>
+        </div>
 
-        <p>
-          Gestiona y consulta la estructura operativa del
-          sistema: servicios, especialidades y camas.
-        </p>
-      </div>
+        <Link href="/" className="page-heading-action">
+          ← Volver al panel
+        </Link>
+      </header>
 
       {/* =====================================================
           BREADCRUMB
