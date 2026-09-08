@@ -56,11 +56,11 @@ export default function Home() {
               href={modulo.href}
               className="dashboard-card"
             >
-              <div className={"dashboard-card-icon " + modulo.color}>
-                {modulo.icono}
-              </div>
-
               <div className="dashboard-card-header">
+                <div className={"dashboard-card-icon " + modulo.color}>
+                  {modulo.icono}
+                </div>
+
                 <span className="dashboard-card-arrow" aria-hidden="true">
                   →
                 </span>
