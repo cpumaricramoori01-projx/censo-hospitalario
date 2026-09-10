@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { camas } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { camas, egresos, ingresos } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -191,12 +191,59 @@ export async function PATCH(request: NextRequest) {
     const existente = await db
       .select()
       .from(camas)
-      .where(eq(camas.id, id));
+      .where(eq(camas.id, id))
+      .limit(1);
 
     if (existente.length === 0) {
       return NextResponse.json(
         { error: "Cama no encontrada" },
         { status: 404 }
+      );
+    }
+
+    const estadoActual = existente[0].estado;
+
+    const ingresoActivo = await db
+      .select({ id: ingresos.id })
+      .from(ingresos)
+      .leftJoin(
+        egresos,
+        eq(egresos.ingresoId, ingresos.id)
+      )
+      .where(
+        and(
+          eq(ingresos.camaId, id),
+          isNull(egresos.id)
+        )
+      )
+      .limit(1);
+
+    const tieneIngresoActivo =
+      ingresoActivo.length > 0;
+
+    if (
+      tieneIngresoActivo &&
+      estado !== "ocupada"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "No se puede cambiar el estado de una cama con un paciente hospitalizado. Registre primero el egreso o traslado correspondiente.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (
+      estado === "ocupada" &&
+      !tieneIngresoActivo
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "No se puede marcar una cama como ocupada si no tiene un paciente hospitalizado activo.",
+        },
+        { status: 409 }
       );
     }
 
@@ -216,6 +263,7 @@ export async function PATCH(request: NextRequest) {
       ubicacion,
       especialidadId,
       estado,
+      estadoAnterior: estadoActual,
     });
   } catch (err) {
     console.error(err);
