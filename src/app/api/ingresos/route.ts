@@ -1,28 +1,37 @@
-// src/app/api/ingresos/route.ts (v3)
-// Igual que v2, pero al crear un paciente nuevo tambien captura
-// sexo y fecha de nacimiento (necesarios para los reportes de censo
-// desglosados por sexo). correo/telefono/direccion quedan fuera a
-// proposito: llegaran sincronizados del HIS mas adelante, no se
-// capturan manualmente aqui.
- 
+// src/app/api/ingresos/route.ts
+// Crea un ingreso hospitalario de forma transaccional.
+// Si cualquier paso falla, no queda información parcial.
+
 import { NextRequest, NextResponse } from "next/server";
 import {
   ingresos,
+  egresos,
   camas,
   pacientesRef,
   diagnosticosIngreso,
 } from "@/db/schema";
 import { db } from "@/db";
-import { eq } from "drizzle-orm";
- 
+import { and, eq, isNull } from "drizzle-orm";
+
 type DiagnosticoInput = {
   cie10Codigo?: string;
   cie10Descripcion: string;
 };
- 
+
+class IngresoError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "IngresoError";
+    this.status = status;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
     const {
       hc,
       dni,
@@ -49,7 +58,7 @@ export async function POST(request: NextRequest) {
       apellidoPaterno?: string;
       apellidoMaterno?: string;
       sexo?: "M" | "F";
-      fechaNacimiento?: string; // "YYYY-MM-DD"
+      fechaNacimiento?: string;
       camaId: number;
       medico?: string;
       tipoIngreso: "normal" | "transferencia";
@@ -62,98 +71,213 @@ export async function POST(request: NextRequest) {
       notasEstancia?: string;
       diagnosticos: DiagnosticoInput[];
     } = body;
- 
+
+    // ---------------------------------------------------------
+    // VALIDACIONES BASICAS
+    // ---------------------------------------------------------
+
     if (!hc || !camaId) {
       return NextResponse.json(
-        { error: "Faltan campos obligatorios: hc y camaId" },
+        {
+          error: "Faltan campos obligatorios: hc y camaId",
+        },
         { status: 400 }
       );
     }
+
     if (!diagnosticos || diagnosticos.length === 0) {
       return NextResponse.json(
-        { error: "Debes indicar al menos un diagnóstico" },
+        {
+          error: "Debes indicar al menos un diagnóstico",
+        },
         { status: 400 }
       );
     }
+
     if (tipoIngreso === "transferencia" && !servicioOrigenId) {
       return NextResponse.json(
-        { error: "Un ingreso por transferencia debe indicar el servicio de origen" },
+        {
+          error:
+            "Un ingreso por transferencia debe indicar el servicio de origen",
+        },
         { status: 400 }
       );
     }
- 
-    const pacienteExistente = await db
-      .select()
-      .from(pacientesRef)
-      .where(eq(pacientesRef.hc, hc));
- 
-    if (pacienteExistente.length === 0) {
-      if (!nombres || !apellidoPaterno || !sexo) {
-        return NextResponse.json(
-          {
-            error:
-              "El paciente no existe. Debes indicar al menos nombres, apellido paterno y sexo para crearlo.",
-          },
-          { status: 400 }
+
+    // ---------------------------------------------------------
+    // TRANSACCION COMPLETA
+    // ---------------------------------------------------------
+
+    const ingresoId = await db.transaction(async (tx) => {
+      // -------------------------------------------------------
+      // 1. VERIFICAR QUE EL PACIENTE NO TENGA UN INGRESO ACTIVO
+      // -------------------------------------------------------
+
+      const ingresoActivo = await tx
+        .select({ id: ingresos.id })
+        .from(ingresos)
+        .leftJoin(
+          egresos,
+          eq(egresos.ingresoId, ingresos.id)
+        )
+        .where(
+          and(
+            eq(ingresos.hc, hc),
+            isNull(egresos.id)
+          )
+        )
+        .limit(1);
+
+      if (ingresoActivo.length > 0) {
+        throw new IngresoError(
+          "El paciente ya tiene un ingreso hospitalario activo. Registre primero el egreso o traslado correspondiente.",
+          409
         );
       }
-      await db.insert(pacientesRef).values({
-        hc,
-        dni,
-        nombres: nombres!,
-        apellidoPaterno: apellidoPaterno!,
-        apellidoMaterno,
-        sexo,
-        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
-        origenDato: "manual",
-        fechaActualizacion: new Date(),
-      });
-    }
- 
-    const camaActual = await db.select().from(camas).where(eq(camas.id, camaId));
-    if (camaActual.length === 0) {
-      return NextResponse.json({ error: "Cama no encontrada" }, { status: 404 });
-    }
-    if (camaActual[0].estado !== "libre") {
-      return NextResponse.json(
-        { error: "Esa cama ya no está libre, elige otra" },
-        { status: 409 }
-      );
-    }
- 
-    const resultIngreso = await db.insert(ingresos).values({
-      hc,
-      camaId,
-      fechaIngreso: new Date(),
-      medico,
-      tipoIngreso,
-      servicioOrigenId: tipoIngreso === "transferencia" ? servicioOrigenId : null,
-      financiamiento,
-      usaVentilador: !!usaVentilador,
-      usaOxigeno: !!usaOxigeno,
-      tieneProblemaJudicial: !!tieneProblemaJudicial,
-      tieneProblemaSocial: !!tieneProblemaSocial,
-      notasEstancia,
+
+      // -------------------------------------------------------
+      // 2. RESERVAR LA CAMA DE FORMA ATOMICA
+      // -------------------------------------------------------
+
+      const reservaCama = await tx
+        .update(camas)
+        .set({ estado: "ocupada" })
+        .where(
+          and(
+            eq(camas.id, camaId),
+            eq(camas.estado, "libre")
+          )
+        );
+
+      if (reservaCama[0].affectedRows === 0) {
+        const camaExiste = await tx
+          .select({ id: camas.id })
+          .from(camas)
+          .where(eq(camas.id, camaId))
+          .limit(1);
+
+        if (camaExiste.length === 0) {
+          throw new IngresoError(
+            "Cama no encontrada",
+            404
+          );
+        }
+
+        throw new IngresoError(
+          "Esa cama ya no está libre, elige otra",
+          409
+        );
+      }
+
+      // -------------------------------------------------------
+      // 3. VERIFICAR / CREAR PACIENTE
+      // -------------------------------------------------------
+
+      const pacienteExistente = await tx
+        .select({ hc: pacientesRef.hc })
+        .from(pacientesRef)
+        .where(eq(pacientesRef.hc, hc))
+        .limit(1);
+
+      if (pacienteExistente.length === 0) {
+        if (!nombres || !apellidoPaterno || !sexo) {
+          throw new IngresoError(
+            "El paciente no existe. Debes indicar al menos nombres, apellido paterno y sexo para crearlo.",
+            400
+          );
+        }
+
+        await tx.insert(pacientesRef).values({
+          hc,
+          dni,
+          nombres,
+          apellidoPaterno,
+          apellidoMaterno,
+          sexo,
+          fechaNacimiento: fechaNacimiento
+            ? new Date(fechaNacimiento)
+            : undefined,
+          origenDato: "manual",
+          fechaActualizacion: new Date(),
+        });
+      }
+
+      // -------------------------------------------------------
+      // 4. CREAR INGRESO
+      // -------------------------------------------------------
+
+      const resultIngreso = await tx
+        .insert(ingresos)
+        .values({
+          hc,
+          camaId,
+          fechaIngreso: new Date(),
+          medico,
+          tipoIngreso,
+          servicioOrigenId:
+            tipoIngreso === "transferencia"
+              ? servicioOrigenId
+              : null,
+          financiamiento,
+          usaVentilador: !!usaVentilador,
+          usaOxigeno: !!usaOxigeno,
+          tieneProblemaJudicial:
+            !!tieneProblemaJudicial,
+          tieneProblemaSocial:
+            !!tieneProblemaSocial,
+          notasEstancia,
+        });
+
+      const nuevoIngresoId =
+        resultIngreso[0].insertId;
+
+      // -------------------------------------------------------
+      // 5. CREAR DIAGNOSTICOS
+      // -------------------------------------------------------
+
+      await tx
+        .insert(diagnosticosIngreso)
+        .values(
+          diagnosticos.map((d, i) => ({
+            ingresoId: nuevoIngresoId,
+            orden: i + 1,
+            cie10Codigo: d.cie10Codigo,
+            cie10Descripcion:
+              d.cie10Descripcion,
+          }))
+        );
+
+      // La cama ya fue marcada como ocupada
+      // en el paso 2, dentro de la misma transaccion.
+
+      return nuevoIngresoId;
     });
- 
-    const ingresoId = resultIngreso[0].insertId;
- 
-    await db.insert(diagnosticosIngreso).values(
-      diagnosticos.map((d, i) => ({
-        ingresoId,
-        orden: i + 1,
-        cie10Codigo: d.cie10Codigo,
-        cie10Descripcion: d.cie10Descripcion,
-      }))
+
+    // ---------------------------------------------------------
+    // TRANSACCION COMPLETADA
+    // ---------------------------------------------------------
+
+    return NextResponse.json(
+      { id: ingresoId },
+      { status: 201 }
     );
- 
-    await db.update(camas).set({ estado: "ocupada" }).where(eq(camas.id, camaId));
- 
-    return NextResponse.json({ id: ingresoId }, { status: 201 });
   } catch (err) {
     console.error(err);
+
+    if (err instanceof IngresoError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.status }
+      );
+    }
+
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
+      {
+        error:
+          err instanceof Error
+            ? err.message
+            : "Error desconocido",
+      },
       { status: 500 }
     );
   }
