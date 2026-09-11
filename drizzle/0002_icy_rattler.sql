@@ -1,0 +1,8 @@
+ALTER TABLE `camas` ADD CONSTRAINT `camas_especialidad_fk` FOREIGN KEY (`especialidad_id`) REFERENCES `especialidades`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `diagnosticos_ingreso` ADD CONSTRAINT `diagnosticos_ingreso_fk` FOREIGN KEY (`ingreso_id`) REFERENCES `ingresos`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `egresos` ADD CONSTRAINT `egresos_ingreso_fk` FOREIGN KEY (`ingreso_id`) REFERENCES `ingresos`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `egresos` ADD CONSTRAINT `egresos_servicio_destino_fk` FOREIGN KEY (`servicio_destino_id`) REFERENCES `servicios`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `especialidades` ADD CONSTRAINT `especialidades_servicio_fk` FOREIGN KEY (`servicio_id`) REFERENCES `servicios`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `ingresos` ADD CONSTRAINT `ingresos_paciente_fk` FOREIGN KEY (`hc`) REFERENCES `pacientes_ref`(`hc`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `ingresos` ADD CONSTRAINT `ingresos_cama_fk` FOREIGN KEY (`cama_id`) REFERENCES `camas`(`id`) ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE `ingresos` ADD CONSTRAINT `ingresos_servicio_origen_fk` FOREIGN KEY (`servicio_origen_id`) REFERENCES `servicios`(`id`) ON DELETE no action ON UPDATE no action;

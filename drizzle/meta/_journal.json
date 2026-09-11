@@ -15,6 +15,13 @@
       "when": 1786396580309,
       "tag": "0001_cute_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1789129476622,
+      "tag": "0002_icy_rattler",
+      "breakpoints": true
     }
   ]
 }

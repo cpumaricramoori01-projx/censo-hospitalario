@@ -28,6 +28,7 @@ import {
   int,
   boolean,
   text,
+  foreignKey,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
@@ -54,50 +55,100 @@ export const servicios = mysqlTable("servicios", {
   nombre: varchar("nombre", { length: 60 }).notNull(),
 });
 
-export const especialidades = mysqlTable("especialidades", {
-  id: int("id").primaryKey().autoincrement(),
-  nombre: varchar("nombre", { length: 80 }).notNull(),
-  servicioId: int("servicio_id").notNull(),
-});
+export const especialidades = mysqlTable(
+  "especialidades",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    nombre: varchar("nombre", { length: 80 }).notNull(),
+    servicioId: int("servicio_id").notNull(),
+  },
+  (table) => ({
+    servicioFk: foreignKey({
+      columns: [table.servicioId],
+      foreignColumns: [servicios.id],
+      name: "especialidades_servicio_fk",
+    }),
+  }),
+);
 
 // estado: 'libre' | 'ocupada' | 'inoperativa'
 // ubicacion: piso/ambiente fisico real (ej. "3er piso", "Salud Mental",
 // "2do piso - ala norte") -- permite que un mismo servicio tenga camas
 // repartidas en mas de un lugar (caso Gineco-Obstetricia)
-export const camas = mysqlTable("camas", {
-  id: int("id").primaryKey().autoincrement(),
-  numero: varchar("numero", { length: 10 }).notNull(),
-  estado: varchar("estado", { length: 20 }).notNull().default("libre"),
-  ubicacion: varchar("ubicacion", { length: 80 }),
-  especialidadId: int("especialidad_id").notNull(),
-});
+export const camas = mysqlTable(
+  "camas",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    numero: varchar("numero", { length: 10 }).notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("libre"),
+    ubicacion: varchar("ubicacion", { length: 80 }),
+    especialidadId: int("especialidad_id").notNull(),
+  },
+  (table) => ({
+    especialidadFk: foreignKey({
+      columns: [table.especialidadId],
+      foreignColumns: [especialidades.id],
+      name: "camas_especialidad_fk",
+    }),
+  }),
+);
 
 // tipoIngreso: 'normal' | 'transferencia'
 // financiamiento: SIS Gratuito, SIS Para Todos, Particular, Fondo Salud, etc.
-export const ingresos = mysqlTable("ingresos", {
-  id: int("id").primaryKey().autoincrement(),
-  hc: varchar("hc", { length: 20 }).notNull(),
-  camaId: int("cama_id").notNull(),
-  fechaIngreso: datetime("fecha_ingreso").notNull(),
-  medico: varchar("medico", { length: 100 }),
-  tipoIngreso: varchar("tipo_ingreso", { length: 20 }).notNull().default("normal"),
-  servicioOrigenId: int("servicio_origen_id"), // solo si tipoIngreso = transferencia
-  financiamiento: varchar("financiamiento", { length: 40 }),
-  usaVentilador: boolean("usa_ventilador").notNull().default(false),
-  usaOxigeno: boolean("usa_oxigeno").notNull().default(false),
-  tieneProblemaJudicial: boolean("tiene_problema_judicial").notNull().default(false),
-  tieneProblemaSocial: boolean("tiene_problema_social").notNull().default(false),
-  notasEstancia: text("notas_estancia"),
-});
+export const ingresos = mysqlTable(
+  "ingresos",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    hc: varchar("hc", { length: 20 }).notNull(),
+    camaId: int("cama_id").notNull(),
+    fechaIngreso: datetime("fecha_ingreso").notNull(),
+    medico: varchar("medico", { length: 100 }),
+    tipoIngreso: varchar("tipo_ingreso", { length: 20 }).notNull().default("normal"),
+    servicioOrigenId: int("servicio_origen_id"), // solo si tipoIngreso = transferencia
+    financiamiento: varchar("financiamiento", { length: 40 }),
+    usaVentilador: boolean("usa_ventilador").notNull().default(false),
+    usaOxigeno: boolean("usa_oxigeno").notNull().default(false),
+    tieneProblemaJudicial: boolean("tiene_problema_judicial").notNull().default(false),
+    tieneProblemaSocial: boolean("tiene_problema_social").notNull().default(false),
+    notasEstancia: text("notas_estancia"),
+  },
+  (table) => ({
+    pacienteFk: foreignKey({
+      columns: [table.hc],
+      foreignColumns: [pacientesRef.hc],
+      name: "ingresos_paciente_fk",
+    }),
+    camaFk: foreignKey({
+      columns: [table.camaId],
+      foreignColumns: [camas.id],
+      name: "ingresos_cama_fk",
+    }),
+    servicioOrigenFk: foreignKey({
+      columns: [table.servicioOrigenId],
+      foreignColumns: [servicios.id],
+      name: "ingresos_servicio_origen_fk",
+    }),
+  }),
+);
 
 // Un ingreso puede tener varios diagnosticos (principal, secundarios)
-export const diagnosticosIngreso = mysqlTable("diagnosticos_ingreso", {
-  id: int("id").primaryKey().autoincrement(),
-  ingresoId: int("ingreso_id").notNull(),
-  orden: int("orden").notNull().default(1),
-  cie10Codigo: varchar("cie10_codigo", { length: 15 }),
-  cie10Descripcion: varchar("cie10_descripcion", { length: 250 }).notNull(),
-});
+export const diagnosticosIngreso = mysqlTable(
+  "diagnosticos_ingreso",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    ingresoId: int("ingreso_id").notNull(),
+    orden: int("orden").notNull().default(1),
+    cie10Codigo: varchar("cie10_codigo", { length: 15 }),
+    cie10Descripcion: varchar("cie10_descripcion", { length: 250 }).notNull(),
+  },
+  (table) => ({
+    ingresoFk: foreignKey({
+      columns: [table.ingresoId],
+      foreignColumns: [ingresos.id],
+      name: "diagnosticos_ingreso_fk",
+    }),
+  }),
+);
 
 export const movimientos = mysqlTable("movimientos", {
   id: int("id").primaryKey().autoincrement(),
@@ -111,16 +162,31 @@ export const movimientos = mysqlTable("movimientos", {
 // | 'fallecido' | 'transferencia' | 'retiro' | 'otro'
 // codigoEgresoOriginal: el codigo crudo tal como viene del HIS (AH, AL,
 // FA, AV, RE, 00) -- se guarda sin traducir hasta confirmar el mapeo exacto
-export const egresos = mysqlTable("egresos", {
-  id: int("id").primaryKey().autoincrement(),
-  ingresoId: int("ingreso_id").notNull().unique(),
-  fechaEgreso: datetime("fecha_egreso").notNull(),
-  tipoEgreso: varchar("tipo_egreso", { length: 30 }).notNull(),
-  codigoEgresoOriginal: varchar("codigo_egreso_original", { length: 10 }),
-  servicioDestinoId: int("servicio_destino_id"), // solo si tipoEgreso = transferencia
-  medicoAlta: varchar("medico_alta", { length: 100 }),
-  diagnosticoFinal: varchar("diagnostico_final", { length: 250 }),
-});
+export const egresos = mysqlTable(
+  "egresos",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    ingresoId: int("ingreso_id").notNull().unique(),
+    fechaEgreso: datetime("fecha_egreso").notNull(),
+    tipoEgreso: varchar("tipo_egreso", { length: 30 }).notNull(),
+    codigoEgresoOriginal: varchar("codigo_egreso_original", { length: 10 }),
+    servicioDestinoId: int("servicio_destino_id"), // solo si tipoEgreso = transferencia
+    medicoAlta: varchar("medico_alta", { length: 100 }),
+    diagnosticoFinal: varchar("diagnostico_final", { length: 250 }),
+  },
+  (table) => ({
+    ingresoFk: foreignKey({
+      columns: [table.ingresoId],
+      foreignColumns: [ingresos.id],
+      name: "egresos_ingreso_fk",
+    }),
+    servicioDestinoFk: foreignKey({
+      columns: [table.servicioDestinoId],
+      foreignColumns: [servicios.id],
+      name: "egresos_servicio_destino_fk",
+    }),
+  }),
+);
 
 // ---------------------------------------------------------------------
 // Relaciones
