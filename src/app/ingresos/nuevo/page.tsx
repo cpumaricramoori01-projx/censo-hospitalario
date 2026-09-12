@@ -575,7 +575,7 @@ export default function NuevoIngresoPage() {
     datosNuevoPacienteValidos;
 
   return (
-    <div className="form-page">
+    <div className="form-page ingreso-form-page">
       <header className="page-heading page-heading-with-action">
         <div>
           <p className="page-kicker">

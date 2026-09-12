@@ -202,125 +202,125 @@ body { margin: 0; min-height: 100vh; background: var(--background); color: var(-
    ========================================================= */
 
 @media (min-width: 980px) {
-  .form-page { max-width: 1180px; }
+  .ingreso-form-page { max-width: 1180px; }
 
-  .form-card {
+  .ingreso-form-page .form-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
 
   /* Ubicación + tipo de ingreso */
-  .form-card > .form-section:nth-child(1),
-  .form-card > .form-section:nth-child(2) {
+  .ingreso-form-page .form-card > .form-section:nth-child(1),
+  .ingreso-form-page .form-card > .form-section:nth-child(2) {
     min-height: 100%;
   }
 
   /* Identificación ocupa todo el ancho */
-  .form-card > .form-section:nth-child(3) {
+  .ingreso-form-page .form-card > .form-section:nth-child(3) {
     grid-column: 1 / -1;
     background: #fbfcfd;
   }
 
   /* Clínica + diagnósticos en paralelo */
-  .form-card > .form-section:nth-child(4),
-  .form-card > .form-section:nth-child(5) {
+  .ingreso-form-page .form-card > .form-section:nth-child(4),
+  .ingreso-form-page .form-card > .form-section:nth-child(5) {
     min-width: 0;
   }
 
   /* Estancia y confirmación ocupan todo el ancho */
-  .form-card > .form-section:nth-child(6),
-  .form-card > .form-section:nth-child(7) {
+  .ingreso-form-page .form-card > .form-section:nth-child(6),
+  .ingreso-form-page .form-card > .form-section:nth-child(7) {
     grid-column: 1 / -1;
   }
 
-  .form-card > .form-section:nth-child(7) {
+  .ingreso-form-page .form-card > .form-section:nth-child(7) {
     background: #fbfcfd;
   }
 
-  .form-card > .status-message {
+  .ingreso-form-page .form-card > .status-message {
     grid-column: 1 / -1;
   }
 
-  /* Separación visual entre columnas sin duplicar bordes */
-  .form-card > .form-section:nth-child(1),
-  .form-card > .form-section:nth-child(4) {
+  /* Separación visual entre columnas */
+  .ingreso-form-page .form-card > .form-section:nth-child(1),
+  .ingreso-form-page .form-card > .form-section:nth-child(4) {
     border-right: 1px solid var(--border);
   }
 
-  /* En el bloque de ubicación, los tres selectores se compactan en una fila cuando caben. */
-  .form-card > .form-section:nth-child(1) {
+  /* Ubicación */
+  .ingreso-form-page .form-card > .form-section:nth-child(1) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 14px;
   }
 
-  .form-card > .form-section:nth-child(1) > .form-section-title,
-  .form-card > .form-section:nth-child(1) > .form-section-description {
+  .ingreso-form-page .form-card > .form-section:nth-child(1) > .form-section-title,
+  .ingreso-form-page .form-card > .form-section:nth-child(1) > .form-section-description {
     grid-column: 1 / -1;
   }
 
-  .form-card > .form-section:nth-child(1) > .form-field {
+  .ingreso-form-page .form-card > .form-section:nth-child(1) > .form-field {
     min-width: 0;
   }
 
-  .form-card > .form-section:nth-child(1) > .form-field:nth-of-type(3) {
+  .ingreso-form-page .form-card > .form-section:nth-child(1) > .form-field:nth-of-type(3) {
     grid-column: 1 / -1;
   }
 
-  /* Tipo de ingreso se siente como tarjeta corta, no como bloque vacío. */
-  .form-card > .form-section:nth-child(2) .form-field {
+  /* Tipo de ingreso */
+  .ingreso-form-page .form-card > .form-section:nth-child(2) .form-field {
     max-width: 520px;
   }
 
-  /* Identificación: búsqueda y resultado ocupan la parte útil del bloque. */
-  .form-card > .form-section:nth-child(3) > .form-field {
+  /* Identificación */
+  .ingreso-form-page .form-card > .form-section:nth-child(3) > .form-field {
     max-width: 720px;
   }
 
-  .form-card > .form-section:nth-child(3) .form-grid-2 {
+  .ingreso-form-page .form-card > .form-section:nth-child(3) .form-grid-2 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  /* Diagnóstico: menos sensación de lista vertical. */
-  .form-card > .form-section:nth-child(5) > div[style*="display: grid"] {
+  /* Diagnósticos */
+  .ingreso-form-page .form-card > .form-section:nth-child(5) > div[style*="display: grid"] {
     gap: 10px !important;
   }
 
-  /* Condiciones especiales quedan en una línea compacta. */
-  .form-card > .form-section:nth-child(4) > div[style*="marginTop: 18px"] {
+  /* Condiciones especiales */
+  .ingreso-form-page .form-card > .form-section:nth-child(4) > div[style*="marginTop: 18px"] {
     margin-top: 14px !important;
   }
 
-  /* Estancia: controles y observaciones se perciben como un bloque compacto. */
-  .form-card > .form-section:nth-child(6) {
+  /* Estancia */
+  .ingreso-form-page .form-card > .form-section:nth-child(6) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
     column-gap: 24px;
     align-items: start;
   }
 
-  .form-card > .form-section:nth-child(6) > .form-section-title,
-  .form-card > .form-section:nth-child(6) > .form-section-description {
+  .ingreso-form-page .form-card > .form-section:nth-child(6) > .form-section-title,
+  .ingreso-form-page .form-card > .form-section:nth-child(6) > .form-section-description {
     grid-column: 1 / -1;
   }
 
-  .form-card > .form-section:nth-child(6) > .form-field {
+  .ingreso-form-page .form-card > .form-section:nth-child(6) > .form-field {
     margin-top: 0;
   }
 
-  .form-card > .form-section:nth-child(6) textarea {
+  .ingreso-form-page .form-card > .form-section:nth-child(6) textarea {
     min-height: 72px;
   }
 }
 
 @media (max-width: 979px) {
-  .form-page { max-width: 920px; }
+  .ingreso-form-page { max-width: 920px; }
 }
 
 @media (max-width: 820px) {
-  .form-card > .form-section:nth-child(1),
-  .form-card > .form-section:nth-child(4) {
+  .ingreso-form-page .form-card > .form-section:nth-child(1),
+  .ingreso-form-page .form-card > .form-section:nth-child(4) {
     border-right: 0;
   }
 }
