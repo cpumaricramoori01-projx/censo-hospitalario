@@ -3,17 +3,38 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const grupos = [
+type ItemSidebar = {
+  label: string;
+  href: string;
+  icono: string;
+  disabled?: boolean;
+};
+
+type GrupoSidebar = {
+  titulo: string | null;
+  items: ItemSidebar[];
+};
+
+const grupos: GrupoSidebar[] = [
   { titulo: null, items: [{ label: "Panel principal", href: "/panel", icono: "▣" }] },
-  { titulo: "Movimientos", items: [
-    { label: "Registrar ingreso", href: "/ingresos/nuevo", icono: "↓" },
-    { label: "Registrar egreso", href: "/egresos/nuevo", icono: "↑" },
-  ] },
-  { titulo: "Hospitalización", items: [
-    { label: "Estructura hospitalaria", href: "/test", icono: "▦" },
-    { label: "Censo actual", href: "/censo", icono: "▤" },
-  ] },
-  { titulo: "Reportes", items: [{ label: "Próximamente", href: "#", icono: "▥", disabled: true }] },
+  {
+    titulo: "Movimientos",
+    items: [
+      { label: "Registrar ingreso", href: "/ingresos/nuevo", icono: "↓" },
+      { label: "Registrar egreso", href: "/egresos/nuevo", icono: "↑" },
+    ],
+  },
+  {
+    titulo: "Hospitalización",
+    items: [
+      { label: "Estructura hospitalaria", href: "/test", icono: "▦" },
+      { label: "Censo actual", href: "/censo", icono: "▤" },
+    ],
+  },
+  {
+    titulo: "Reportes",
+    items: [{ label: "Próximamente", href: "#", icono: "▥", disabled: true }],
+  },
 ];
 
 export default function Sidebar() {
@@ -39,10 +60,26 @@ export default function Sidebar() {
             <div className="sidebar-items">
               {grupo.items.map((item) => {
                 const activo = !item.disabled && pathname === item.href;
+
                 if (item.disabled) {
-                  return <span key={item.label} className="sidebar-link sidebar-link-disabled"><span className="sidebar-link-icon">{item.icono}</span><span>{item.label}</span></span>;
+                  return (
+                    <span key={item.label} className="sidebar-link sidebar-link-disabled">
+                      <span className="sidebar-link-icon">{item.icono}</span>
+                      <span>{item.label}</span>
+                    </span>
+                  );
                 }
-                return <Link key={item.label} href={item.href} className={`sidebar-link ${activo ? "is-active" : ""}`}><span className="sidebar-link-icon">{item.icono}</span><span>{item.label}</span></Link>;
+
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`sidebar-link ${activo ? "is-active" : ""}`}
+                  >
+                    <span className="sidebar-link-icon">{item.icono}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                );
               })}
             </div>
           </div>
