@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import Sidebar from "./components/Sidebar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,35 +31,33 @@ export default function RootLayout({
     >
       <body>
         <div className="app-shell">
-          <header className="app-header">
-            <div className="app-header-inner">
-              <Link href="/" className="app-brand">
-                <div className="app-brand-icon">+</div>
+          <Sidebar />
 
-                <div className="app-brand-text">
-                  <span className="app-brand-title">
+          <div className="app-content">
+            <header className="app-mobile-header">
+              <Link href="/panel" className="app-mobile-brand">
+                <div className="app-mobile-brand-icon">+</div>
+
+                <div>
+                  <span className="app-mobile-brand-title">
                     Censo Hospitalario
                   </span>
-                  <span className="app-brand-subtitle">
-                    Sistema de gestión hospitalaria
+                  <span className="app-mobile-brand-subtitle">
+                    Sistema de gestión
                   </span>
                 </div>
               </Link>
+            </header>
 
-              <div className="app-header-badge">
-                Gestión hospitalaria
+            <main className="app-main">{children}</main>
+
+            <footer className="app-footer">
+              <div className="app-footer-inner">
+                <span>Censo Hospitalario</span>
+                <span>Sistema de gestión hospitalaria</span>
               </div>
-            </div>
-          </header>
-
-          <main className="app-main">{children}</main>
-
-          <footer className="app-footer">
-            <div className="app-footer-inner">
-              <span>Censo Hospitalario</span>
-              <span>Sistema de gestión hospitalaria</span>
-            </div>
-          </footer>
+            </footer>
+          </div>
         </div>
       </body>
     </html>
