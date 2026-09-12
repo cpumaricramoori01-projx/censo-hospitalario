@@ -115,3 +115,118 @@ body { margin: 0; min-height: 100vh; background: var(--background); color: var(-
   .sidebar-link { font-size:11px; }
   .app-header-inner,.app-main{padding-left:16px;padding-right:16px}.app-header-badge{display:none}.landing-page{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}.landing-hero h1{font-size:48px}.landing-description{font-size:16px}.landing-visual{min-height:390px}.landing-data-card{width:145px}.landing-data-card-one{left:12px;top:22px}.landing-data-card-two{right:12px;bottom:22px}.landing-center-card{width:170px}.orbit-one{width:310px;height:310px}.orbit-two{width:390px;height:220px}.form-section{padding:20px}.app-footer-inner{padding-left:16px;padding-right:16px;flex-direction:column;gap:4px}
 }
+
+/* =========================================================
+   PANEL HOSPITALARIO
+   Capa visual compacta y responsive.
+   No altera la estructura existente.
+   ========================================================= */
+
+.panel-page {
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.panel-page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.panel-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.panel-kpi-grid > * {
+  min-width: 0;
+}
+
+.panel-service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.panel-service-grid > * {
+  min-width: 0;
+}
+
+.panel-secondary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.panel-secondary-grid > * {
+  min-width: 0;
+}
+
+.panel-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.panel-resource-grid > * {
+  min-width: 0;
+}
+
+/* Mejor lectura de la tabla principal */
+.panel-page table tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+.panel-page table tbody tr:hover {
+  background: #f8fbfc;
+}
+
+/* Botones/enlaces del panel */
+.panel-page a {
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .panel-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .panel-service-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .panel-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .panel-kpi-grid,
+  .panel-service-grid,
+  .panel-secondary-grid,
+  .panel-resource-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .panel-kpi-grid {
+    gap: 9px;
+  }
+
+  .panel-page table {
+    min-width: 850px;
+  }
+}
