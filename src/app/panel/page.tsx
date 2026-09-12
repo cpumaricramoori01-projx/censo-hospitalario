@@ -86,7 +86,9 @@ export default function PanelPage() {
     cargarCenso();
   }, [cargarCenso]);
 
-  const indicadores = [
+  const indicadores: Array<
+  [string, number, string, string, string, string]
+> = [
     ["Camas totales", resumen?.camas.total ?? 0, "Capacidad instalada", "var(--primary)", "var(--primary-light)", "▣"],
     ["Camas libres", resumen?.camas.libres ?? 0, "Disponibilidad actual", "var(--success)", "var(--success-light)", "✓"],
     ["Camas ocupadas", resumen?.camas.ocupadas ?? 0, "En uso actualmente", "#9a6414", "var(--warning-light)", "●"],

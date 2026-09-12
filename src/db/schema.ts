@@ -1,24 +1,3 @@
-// =====================================================================
-// src/db/schema.ts (v2)
-// Esquema actualizado tras revisar las fichas fisicas reales y los
-// reportes del sistema hospitalario (HIS) de abril 2026.
-//
-// Cambios principales respecto a la v1:
-// - pacientesRef: se agrega dni, se separan apellidos en paterno/materno
-// - camas: se agrega "ubicacion" (un mismo servicio puede tener camas en
-//   mas de un piso, ej. Gineco-Obstetricia)
-// - ingresos: se agregan tipoIngreso, servicioOrigenId, financiamiento,
-//   usaVentilador, usaOxigeno, tieneProblemaJudicial, tieneProblemaSocial,
-//   notasEstancia
-// - diagnosticosIngreso: tabla NUEVA (antes "diagnostico" era 1 campo de
-//   texto en ingresos; el HIS real maneja varios diagnosticos con codigo
-//   CIE-10 por evento)
-// - egresos: se agregan servicioDestinoId, medicoAlta, y
-//   codigoEgresoOriginal (para guardar el codigo crudo del HIS: AH, AL,
-//   FA, AV, RE, 00 -- el significado exacto de cada uno queda pendiente
-//   de confirmar, pero no perdemos el dato mientras tanto)
-// =====================================================================
-
 import {
   mysqlTable,
   varchar,
@@ -32,9 +11,6 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
-// ---------------------------------------------------------------------
-// Pacientes (manual por ahora, luego sincronizado del HIS)
-// ---------------------------------------------------------------------
 export const pacientesRef = mysqlTable("pacientes_ref", {
   hc: varchar("hc", { length: 20 }).primaryKey(),
   dni: varchar("dni", { length: 15 }),
@@ -50,9 +26,27 @@ export const pacientesRef = mysqlTable("pacientes_ref", {
   fechaActualizacion: datetime("fecha_actualizacion").notNull(),
 });
 
+export const diagnosticos = mysqlTable("diagnosticos", {
+  id: int("id").primaryKey().autoincrement(),
+  codigo: varchar("codigo", { length: 10 }).notNull().unique(),
+  descripcion: varchar("descripcion", { length: 500 }).notNull(),
+  activo: boolean("activo").notNull().default(true),
+});
+
 export const servicios = mysqlTable("servicios", {
   id: int("id").primaryKey().autoincrement(),
   nombre: varchar("nombre", { length: 60 }).notNull(),
+});
+
+export const medicos = mysqlTable("medicos", {
+  id: int("id").primaryKey().autoincrement(),
+  cmp: varchar("cmp", { length: 20 }).notNull().unique(),
+  nombres: varchar("nombres", { length: 100 }).notNull(),
+  apellidoPaterno: varchar("apellido_paterno", { length: 100 }).notNull(),
+  apellidoMaterno: varchar("apellido_materno", { length: 100 }),
+  especialidad: varchar("especialidad", { length: 150 }).notNull(),
+  servicioId: int("servicio_id").notNull(),
+  activo: boolean("activo").notNull().default(true),
 });
 
 export const especialidades = mysqlTable(
@@ -71,10 +65,6 @@ export const especialidades = mysqlTable(
   }),
 );
 
-// estado: 'libre' | 'ocupada' | 'inoperativa'
-// ubicacion: piso/ambiente fisico real (ej. "3er piso", "Salud Mental",
-// "2do piso - ala norte") -- permite que un mismo servicio tenga camas
-// repartidas en mas de un lugar (caso Gineco-Obstetricia)
 export const camas = mysqlTable(
   "camas",
   {
@@ -93,8 +83,6 @@ export const camas = mysqlTable(
   }),
 );
 
-// tipoIngreso: 'normal' | 'transferencia'
-// financiamiento: SIS Gratuito, SIS Para Todos, Particular, Fondo Salud, etc.
 export const ingresos = mysqlTable(
   "ingresos",
   {
@@ -102,14 +90,27 @@ export const ingresos = mysqlTable(
     hc: varchar("hc", { length: 20 }).notNull(),
     camaId: int("cama_id").notNull(),
     fechaIngreso: datetime("fecha_ingreso").notNull(),
+
+    // Se conserva para compatibilidad con los registros antiguos.
     medico: varchar("medico", { length: 100 }),
-    tipoIngreso: varchar("tipo_ingreso", { length: 20 }).notNull().default("normal"),
-    servicioOrigenId: int("servicio_origen_id"), // solo si tipoIngreso = transferencia
+
+    // Nueva relación con el maestro de médicos.
+    medicoId: int("medico_id"),
+
+    tipoIngreso: varchar("tipo_ingreso", { length: 20 })
+      .notNull()
+      .default("normal"),
+
+    servicioOrigenId: int("servicio_origen_id"),
     financiamiento: varchar("financiamiento", { length: 40 }),
     usaVentilador: boolean("usa_ventilador").notNull().default(false),
     usaOxigeno: boolean("usa_oxigeno").notNull().default(false),
-    tieneProblemaJudicial: boolean("tiene_problema_judicial").notNull().default(false),
-    tieneProblemaSocial: boolean("tiene_problema_social").notNull().default(false),
+    tieneProblemaJudicial: boolean("tiene_problema_judicial")
+      .notNull()
+      .default(false),
+    tieneProblemaSocial: boolean("tiene_problema_social")
+      .notNull()
+      .default(false),
     notasEstancia: text("notas_estancia"),
   },
   (table) => ({
@@ -118,20 +119,27 @@ export const ingresos = mysqlTable(
       foreignColumns: [pacientesRef.hc],
       name: "ingresos_paciente_fk",
     }),
+
     camaFk: foreignKey({
       columns: [table.camaId],
       foreignColumns: [camas.id],
       name: "ingresos_cama_fk",
     }),
+
     servicioOrigenFk: foreignKey({
       columns: [table.servicioOrigenId],
       foreignColumns: [servicios.id],
       name: "ingresos_servicio_origen_fk",
     }),
+
+    medicoFk: foreignKey({
+      columns: [table.medicoId],
+      foreignColumns: [medicos.id],
+      name: "ingresos_medico_fk",
+    }),
   }),
 );
 
-// Un ingreso puede tener varios diagnosticos (principal, secundarios)
 export const diagnosticosIngreso = mysqlTable(
   "diagnosticos_ingreso",
   {
@@ -139,7 +147,9 @@ export const diagnosticosIngreso = mysqlTable(
     ingresoId: int("ingreso_id").notNull(),
     orden: int("orden").notNull().default(1),
     cie10Codigo: varchar("cie10_codigo", { length: 15 }),
-    cie10Descripcion: varchar("cie10_descripcion", { length: 250 }).notNull(),
+    cie10Descripcion: varchar("cie10_descripcion", {
+      length: 250,
+    }).notNull(),
   },
   (table) => ({
     ingresoFk: foreignKey({
@@ -158,10 +168,6 @@ export const movimientos = mysqlTable("movimientos", {
   fecha: datetime("fecha").notNull(),
 });
 
-// tipoEgreso: catalogo propio simplificado -- 'alta_medica' | 'alta_voluntaria'
-// | 'fallecido' | 'transferencia' | 'retiro' | 'otro'
-// codigoEgresoOriginal: el codigo crudo tal como viene del HIS (AH, AL,
-// FA, AV, RE, 00) -- se guarda sin traducir hasta confirmar el mapeo exacto
 export const egresos = mysqlTable(
   "egresos",
   {
@@ -169,8 +175,10 @@ export const egresos = mysqlTable(
     ingresoId: int("ingreso_id").notNull().unique(),
     fechaEgreso: datetime("fecha_egreso").notNull(),
     tipoEgreso: varchar("tipo_egreso", { length: 30 }).notNull(),
-    codigoEgresoOriginal: varchar("codigo_egreso_original", { length: 10 }),
-    servicioDestinoId: int("servicio_destino_id"), // solo si tipoEgreso = transferencia
+    codigoEgresoOriginal: varchar("codigo_egreso_original", {
+      length: 10,
+    }),
+    servicioDestinoId: int("servicio_destino_id"),
     medicoAlta: varchar("medico_alta", { length: 100 }),
     diagnosticoFinal: varchar("diagnostico_final", { length: 250 }),
   },
@@ -180,6 +188,7 @@ export const egresos = mysqlTable(
       foreignColumns: [ingresos.id],
       name: "egresos_ingreso_fk",
     }),
+
     servicioDestinoFk: foreignKey({
       columns: [table.servicioDestinoId],
       foreignColumns: [servicios.id],
@@ -188,66 +197,88 @@ export const egresos = mysqlTable(
   }),
 );
 
-// ---------------------------------------------------------------------
-// Relaciones
-// ---------------------------------------------------------------------
 export const serviciosRelations = relations(servicios, ({ many }) => ({
   especialidades: many(especialidades),
 }));
 
-export const especialidadesRelations = relations(especialidades, ({ one, many }) => ({
-  servicio: one(servicios, {
-    fields: [especialidades.servicioId],
-    references: [servicios.id],
+export const especialidadesRelations = relations(
+  especialidades,
+  ({ one, many }) => ({
+    servicio: one(servicios, {
+      fields: [especialidades.servicioId],
+      references: [servicios.id],
+    }),
+
+    camas: many(camas),
   }),
-  camas: many(camas),
-}));
+);
 
 export const camasRelations = relations(camas, ({ one, many }) => ({
   especialidad: one(especialidades, {
     fields: [camas.especialidadId],
     references: [especialidades.id],
   }),
+
   ingresos: many(ingresos),
 }));
 
-export const ingresosRelations = relations(ingresos, ({ one, many }) => ({
-  paciente: one(pacientesRef, {
-    fields: [ingresos.hc],
-    references: [pacientesRef.hc],
-  }),
-  cama: one(camas, {
-    fields: [ingresos.camaId],
-    references: [camas.id],
-  }),
-  servicioOrigen: one(servicios, {
-    fields: [ingresos.servicioOrigenId],
-    references: [servicios.id],
-  }),
-  diagnosticos: many(diagnosticosIngreso),
-  movimientos: many(movimientos),
-  egreso: one(egresos),
-}));
+export const ingresosRelations = relations(
+  ingresos,
+  ({ one, many }) => ({
+    paciente: one(pacientesRef, {
+      fields: [ingresos.hc],
+      references: [pacientesRef.hc],
+    }),
 
-export const diagnosticosIngresoRelations = relations(diagnosticosIngreso, ({ one }) => ({
-  ingreso: one(ingresos, {
-    fields: [diagnosticosIngreso.ingresoId],
-    references: [ingresos.id],
-  }),
-}));
+    cama: one(camas, {
+      fields: [ingresos.camaId],
+      references: [camas.id],
+    }),
 
-export const movimientosRelations = relations(movimientos, ({ one }) => ({
-  ingreso: one(ingresos, {
-    fields: [movimientos.ingresoId],
-    references: [ingresos.id],
+    servicioOrigen: one(servicios, {
+      fields: [ingresos.servicioOrigenId],
+      references: [servicios.id],
+    }),
+
+    medico: one(medicos, {
+      fields: [ingresos.medicoId],
+      references: [medicos.id],
+    }),
+
+    diagnosticos: many(diagnosticosIngreso),
+
+    movimientos: many(movimientos),
+
+    egreso: one(egresos),
   }),
-}));
+);
+
+export const diagnosticosIngresoRelations = relations(
+  diagnosticosIngreso,
+  ({ one }) => ({
+    ingreso: one(ingresos, {
+      fields: [diagnosticosIngreso.ingresoId],
+      references: [ingresos.id],
+    }),
+  }),
+);
+
+export const movimientosRelations = relations(
+  movimientos,
+  ({ one }) => ({
+    ingreso: one(ingresos, {
+      fields: [movimientos.ingresoId],
+      references: [ingresos.id],
+    }),
+  }),
+);
 
 export const egresosRelations = relations(egresos, ({ one }) => ({
   ingreso: one(ingresos, {
     fields: [egresos.ingresoId],
     references: [ingresos.id],
   }),
+
   servicioDestino: one(servicios, {
     fields: [egresos.servicioDestinoId],
     references: [servicios.id],

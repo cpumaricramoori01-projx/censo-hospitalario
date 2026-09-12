@@ -9,6 +9,7 @@ import {
   camas,
   pacientesRef,
   diagnosticosIngreso,
+  medicos,
 } from "@/db/schema";
 import { db } from "@/db";
 import { and, eq, isNull } from "drizzle-orm";
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
       fechaNacimiento,
       camaId,
       medico,
+      medicoId,
       tipoIngreso,
       servicioOrigenId,
       financiamiento,
@@ -60,7 +62,13 @@ export async function POST(request: NextRequest) {
       sexo?: "M" | "F";
       fechaNacimiento?: string;
       camaId: number;
+
+      // Se conserva para compatibilidad con registros/formularios anteriores.
       medico?: string;
+
+      // Nueva relación con el maestro de médicos.
+      medicoId?: number | null;
+
       tipoIngreso: "normal" | "transferencia";
       servicioOrigenId?: number;
       financiamiento?: string;
@@ -81,7 +89,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Faltan campos obligatorios: hc y camaId",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -90,7 +98,7 @@ export async function POST(request: NextRequest) {
         {
           error: "Debes indicar al menos un diagnóstico",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -100,7 +108,7 @@ export async function POST(request: NextRequest) {
           error:
             "Un ingreso por transferencia debe indicar el servicio de origen",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -118,25 +126,51 @@ export async function POST(request: NextRequest) {
         .from(ingresos)
         .leftJoin(
           egresos,
-          eq(egresos.ingresoId, ingresos.id)
+          eq(egresos.ingresoId, ingresos.id),
         )
         .where(
           and(
             eq(ingresos.hc, hc),
-            isNull(egresos.id)
-          )
+            isNull(egresos.id),
+          ),
         )
         .limit(1);
 
       if (ingresoActivo.length > 0) {
         throw new IngresoError(
           "El paciente ya tiene un ingreso hospitalario activo. Registre primero el egreso o traslado correspondiente.",
-          409
+          409,
         );
       }
 
       // -------------------------------------------------------
-      // 2. RESERVAR LA CAMA DE FORMA ATOMICA
+      // 2. VERIFICAR MEDICO SELECCIONADO
+      // -------------------------------------------------------
+
+      if (medicoId !== undefined && medicoId !== null) {
+        const medicoExistente = await tx
+          .select({
+            id: medicos.id,
+          })
+          .from(medicos)
+          .where(
+            and(
+              eq(medicos.id, medicoId),
+              eq(medicos.activo, true),
+            ),
+          )
+          .limit(1);
+
+        if (medicoExistente.length === 0) {
+          throw new IngresoError(
+            "El médico seleccionado no existe o se encuentra inactivo.",
+            400,
+          );
+        }
+      }
+
+      // -------------------------------------------------------
+      // 3. RESERVAR LA CAMA DE FORMA ATOMICA
       // -------------------------------------------------------
 
       const reservaCama = await tx
@@ -145,8 +179,8 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(camas.id, camaId),
-            eq(camas.estado, "libre")
-          )
+            eq(camas.estado, "libre"),
+          ),
         );
 
       if (reservaCama[0].affectedRows === 0) {
@@ -159,18 +193,18 @@ export async function POST(request: NextRequest) {
         if (camaExiste.length === 0) {
           throw new IngresoError(
             "Cama no encontrada",
-            404
+            404,
           );
         }
 
         throw new IngresoError(
           "Esa cama ya no está libre, elige otra",
-          409
+          409,
         );
       }
 
       // -------------------------------------------------------
-      // 3. VERIFICAR / CREAR PACIENTE
+      // 4. VERIFICAR / CREAR PACIENTE
       // -------------------------------------------------------
 
       const pacienteExistente = await tx
@@ -183,7 +217,7 @@ export async function POST(request: NextRequest) {
         if (!nombres || !apellidoPaterno || !sexo) {
           throw new IngresoError(
             "El paciente no existe. Debes indicar al menos nombres, apellido paterno y sexo para crearlo.",
-            400
+            400,
           );
         }
 
@@ -203,7 +237,7 @@ export async function POST(request: NextRequest) {
       }
 
       // -------------------------------------------------------
-      // 4. CREAR INGRESO
+      // 5. CREAR INGRESO
       // -------------------------------------------------------
 
       const resultIngreso = await tx
@@ -212,12 +246,23 @@ export async function POST(request: NextRequest) {
           hc,
           camaId,
           fechaIngreso: new Date(),
+
+          // Se conserva el texto por compatibilidad.
           medico,
+
+          // Nueva relación con el maestro de médicos.
+          medicoId:
+            medicoId !== undefined && medicoId !== null
+              ? medicoId
+              : null,
+
           tipoIngreso,
+
           servicioOrigenId:
             tipoIngreso === "transferencia"
               ? servicioOrigenId
               : null,
+
           financiamiento,
           usaVentilador: !!usaVentilador,
           usaOxigeno: !!usaOxigeno,
@@ -232,7 +277,7 @@ export async function POST(request: NextRequest) {
         resultIngreso[0].insertId;
 
       // -------------------------------------------------------
-      // 5. CREAR DIAGNOSTICOS
+      // 6. CREAR DIAGNOSTICOS
       // -------------------------------------------------------
 
       await tx
@@ -244,11 +289,11 @@ export async function POST(request: NextRequest) {
             cie10Codigo: d.cie10Codigo,
             cie10Descripcion:
               d.cie10Descripcion,
-          }))
+          })),
         );
 
       // La cama ya fue marcada como ocupada
-      // en el paso 2, dentro de la misma transaccion.
+      // en el paso 3, dentro de la misma transaccion.
 
       return nuevoIngresoId;
     });
@@ -259,7 +304,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { id: ingresoId },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (err) {
     console.error(err);
@@ -267,7 +312,7 @@ export async function POST(request: NextRequest) {
     if (err instanceof IngresoError) {
       return NextResponse.json(
         { error: err.message },
-        { status: err.status }
+        { status: err.status },
       );
     }
 
@@ -278,7 +323,7 @@ export async function POST(request: NextRequest) {
             ? err.message
             : "Error desconocido",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
