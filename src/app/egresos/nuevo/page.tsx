@@ -21,6 +21,16 @@ type IngresoActivo = {
 
 type Servicio = { id: number; nombre: string };
 
+type Medico = {
+  id: number;
+  cmp: string;
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+  especialidad: string | null;
+  servicio: string;
+};
+
 const TIPOS_EGRESO = [
   { value: "alta_medica", label: "Alta médica" },
   { value: "alta_voluntaria", label: "Alta voluntaria" },
@@ -42,6 +52,9 @@ export default function NuevoEgresoPage() {
   const [codigoEgresoOriginal, setCodigoEgresoOriginal] = useState("");
   const [servicioDestinoId, setServicioDestinoId] = useState("");
   const [medicoAlta, setMedicoAlta] = useState("");
+  const [medicos, setMedicos] = useState<Medico[]>([]);
+  const [buscandoMedicos, setBuscandoMedicos] = useState(false);
+  const [medicoSeleccionado, setMedicoSeleccionado] = useState<Medico | null>(null);
   const [diagnosticoFinal, setDiagnosticoFinal] = useState("");
 
   const [enviando, setEnviando] = useState(false);
@@ -100,10 +113,61 @@ export default function NuevoEgresoPage() {
     };
   }, [busqueda]);
 
+  useEffect(() => {
+    const termino = medicoAlta.trim();
+
+    if (medicoSeleccionado) {
+      const nombreSeleccionado = `${medicoSeleccionado.nombres} ${medicoSeleccionado.apellidoPaterno} ${medicoSeleccionado.apellidoMaterno ?? ""}`.trim();
+      if (termino !== nombreSeleccionado) {
+        setMedicoSeleccionado(null);
+      }
+    }
+
+    if (termino.length < 2) {
+      setMedicos([]);
+      setBuscandoMedicos(false);
+      return;
+    }
+
+    const controlador = new AbortController();
+    const temporizador = setTimeout(async () => {
+      setBuscandoMedicos(true);
+
+      try {
+        const res = await fetch(`/api/medicos?q=${encodeURIComponent(termino)}`, {
+          signal: controlador.signal,
+        });
+
+        if (!res.ok) throw new Error("No se pudieron consultar los médicos");
+
+        const data = await res.json();
+        setMedicos(data);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setMedicos([]);
+      } finally {
+        if (!controlador.signal.aborted) setBuscandoMedicos(false);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(temporizador);
+      controlador.abort();
+    };
+  }, [medicoAlta, medicoSeleccionado]);
+
   function seleccionarPaciente(ingreso: IngresoActivo) {
     setSeleccionado(ingreso);
     setHc(ingreso.hc);
     setMensaje(null);
+  }
+
+  function seleccionarMedico(medico: Medico) {
+    const nombre = `${medico.nombres} ${medico.apellidoPaterno} ${medico.apellidoMaterno ?? ""}`.trim();
+    setMedicoAlta(nombre);
+    setMedicoSeleccionado(medico);
+    setMedicos([]);
   }
 
   function limpiarBusqueda() {
@@ -147,6 +211,8 @@ export default function NuevoEgresoPage() {
         setCodigoEgresoOriginal("");
         setServicioDestinoId("");
         setMedicoAlta("");
+        setMedicos([]);
+        setMedicoSeleccionado(null);
         setDiagnosticoFinal("");
       } else {
         setMensaje(`❌ ${data.error}`);
@@ -190,13 +256,7 @@ export default function NuevoEgresoPage() {
 
           <div className="form-field">
             <label className="form-label">Paciente hospitalizado</label>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                gap: 10,
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10 }}>
               <input
                 type="text"
                 value={busqueda}
@@ -204,7 +264,6 @@ export default function NuevoEgresoPage() {
                 placeholder="HC, DNI, nombres o apellidos..."
                 className="form-input"
               />
-
               <button
                 type="button"
                 onClick={() => setBusqueda("")}
@@ -216,13 +275,7 @@ export default function NuevoEgresoPage() {
             </div>
           </div>
 
-          <p
-            style={{
-              margin: "8px 0 0",
-              fontSize: 12,
-              color: "var(--muted)",
-            }}
-          >
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--muted)" }}>
             La búsqueda se realiza automáticamente desde 2 caracteres y solo
             muestra pacientes con hospitalización activa.
           </p>
@@ -256,82 +309,33 @@ export default function NuevoEgresoPage() {
                       width: "100%",
                       textAlign: "left",
                       cursor: "pointer",
-                      border: estaSeleccionado
-                        ? "2px solid var(--success)"
-                        : "1px solid var(--border)",
+                      border: estaSeleccionado ? "2px solid var(--success)" : "1px solid var(--border)",
                       borderRadius: 10,
                       padding: 16,
-                      background: estaSeleccionado
-                        ? "var(--success-light)"
-                        : "white",
-                      boxShadow: estaSeleccionado
-                        ? "0 0 0 3px rgba(22,128,91,0.08)"
-                        : "var(--shadow-sm)",
+                      background: estaSeleccionado ? "var(--success-light)" : "white",
+                      boxShadow: estaSeleccionado ? "0 0 0 3px rgba(22,128,91,0.08)" : "var(--shadow-sm)",
                       transition: "all 0.15s ease",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: 16,
-                      }}
-                    >
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
                       <div>
-                        <div
-                          style={{
-                            fontSize: 16,
-                            fontWeight: 700,
-                            color: "var(--foreground)",
-                          }}
-                        >
+                        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>
                           {r.nombres} {r.apellidoPaterno} {r.apellidoMaterno ?? ""}
                         </div>
-
-                        <div
-                          style={{
-                            marginTop: 6,
-                            fontSize: 13,
-                            color: "var(--muted)",
-                          }}
-                        >
+                        <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)" }}>
                           HC: <strong>{r.hc}</strong>
                           {r.dni ? <> · DNI: <strong>{r.dni}</strong></> : null}
                         </div>
                       </div>
-
-                      <div
-                        style={{
-                          padding: "5px 9px",
-                          borderRadius: 999,
-                          background: estaSeleccionado ? "#d5f1e3" : "#eef2f6",
-                          color: estaSeleccionado ? "var(--success)" : "#536171",
-                          fontSize: 11,
-                          fontWeight: 700,
-                        }}
-                      >
+                      <div style={{ padding: "5px 9px", borderRadius: 999, background: estaSeleccionado ? "#d5f1e3" : "#eef2f6", color: estaSeleccionado ? "var(--success)" : "#536171", fontSize: 11, fontWeight: 700 }}>
                         {estaSeleccionado ? "SELECCIONADO" : "ACTIVO"}
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: 12,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>
-                        {r.servicioNombre}
-                      </span>
-                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>
-                        {r.especialidadNombre}
-                      </span>
-                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#e8f3f7", color: "var(--primary-dark)", fontSize: 12, fontWeight: 600 }}>
-                        Cama {r.numeroCama}
-                      </span>
+                    <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>{r.servicioNombre}</span>
+                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>{r.especialidadNombre}</span>
+                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#e8f3f7", color: "var(--primary-dark)", fontSize: 12, fontWeight: 600 }}>Cama {r.numeroCama}</span>
                     </div>
 
                     <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
@@ -394,7 +398,46 @@ export default function NuevoEgresoPage() {
               <div className="form-grid-2">
                 <div className="form-field">
                   <label className="form-label">Médico que da el alta</label>
-                  <input type="text" value={medicoAlta} onChange={(e) => setMedicoAlta(e.target.value)} className="form-input" />
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      value={medicoAlta}
+                      onChange={(e) => setMedicoAlta(e.target.value)}
+                      placeholder="Buscar por nombre, apellido o CMP..."
+                      className="form-input"
+                      autoComplete="off"
+                    />
+
+                    {buscandoMedicos && (
+                      <div style={{ marginTop: 5, fontSize: 12, color: "var(--muted)" }}>
+                        Buscando médicos...
+                      </div>
+                    )}
+
+                    {medicos.length > 0 && !medicoSeleccionado && (
+                      <div style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, marginTop: 4, border: "1px solid var(--border)", borderRadius: 9, background: "white", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
+                        {medicos.map((m) => {
+                          const nombre = `${m.nombres} ${m.apellidoPaterno} ${m.apellidoMaterno ?? ""}`.trim();
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => seleccionarMedico(m)}
+                              style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--border)", background: "white", padding: "10px 12px", cursor: "pointer" }}
+                            >
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--foreground)" }}>{nombre}</div>
+                              <div style={{ marginTop: 3, fontSize: 11, color: "var(--muted)" }}>
+                                CMP {m.cmp}{m.especialidad ? ` · ${m.especialidad}` : ""}{m.servicio ? ` · ${m.servicio}` : ""}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--muted)" }}>
+                    Escribe al menos 2 caracteres y selecciona al médico registrado.
+                  </p>
                 </div>
 
                 <div className="form-field">
@@ -434,17 +477,7 @@ export default function NuevoEgresoPage() {
         )}
 
         {mensaje && (
-          <div
-            style={{
-              marginTop: 4,
-              padding: "12px 14px",
-              borderRadius: 9,
-              background: mensaje.startsWith("❌") ? "#fff1f1" : "#edf8f3",
-              color: mensaje.startsWith("❌") ? "#a12b2b" : "#176b4a",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
+          <div style={{ marginTop: 4, padding: "12px 14px", borderRadius: 9, background: mensaje.startsWith("❌") ? "#fff1f1" : "#edf8f3", color: mensaje.startsWith("❌") ? "#a12b2b" : "#176b4a", fontSize: 13, fontWeight: 600 }}>
             {mensaje}
           </div>
         )}
