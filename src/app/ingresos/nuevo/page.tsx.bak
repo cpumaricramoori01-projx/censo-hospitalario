@@ -77,7 +77,6 @@ export default function NuevoIngresoPage() {
   const [busquedaPaciente, setBusquedaPaciente] = useState("");
   const [resultadosPaciente, setResultadosPaciente] = useState<Paciente[]>([]);
   const [pacienteAbierto, setPacienteAbierto] = useState(false);
-  const [pacienteNoEncontrado, setPacienteNoEncontrado] = useState(false);
 
   const pacienteRef = useRef<HTMLDivElement | null>(null);
 
@@ -225,7 +224,6 @@ async function buscarPacientes(termino: string) {
   if (termino.trim().length < 2) {
     setResultadosPaciente([]);
     setPacienteAbierto(false);
-    setPacienteNoEncontrado(false);
     return;
   }
 
@@ -246,7 +244,6 @@ async function buscarPacientes(termino: string) {
     const data = await res.json();
 
     setResultadosPaciente(data);
-    setPacienteNoEncontrado(data.length === 0);
     setPacienteAbierto(true);
   } catch (error) {
     console.error("Error buscando paciente:", error);
@@ -527,19 +524,13 @@ function seleccionarPaciente(paciente: Paciente) {
         );
 
         setHc("");
+        setPacienteEncontrado(null);
         setDni("");
         setNombres("");
         setApellidoPaterno("");
         setApellidoMaterno("");
         setSexo("");
         setFechaNacimiento("");
-
-        setPacienteEncontrado(null);
-        setPacienteNoEncontrado(false);
-        setBusquedaPaciente("");
-        setResultadosPaciente([]);
-        setBuscandoPaciente(false);
-        setPacienteAbierto(false);
 
         setMedico("");
         setMedicoId(null);
@@ -597,20 +588,18 @@ function seleccionarPaciente(paciente: Paciente) {
   const transferenciaValida =
     tipoIngreso === "normal" || !!servicioOrigenId;
 
-  const pacienteValido =
+  const datosNuevoPacienteValidos =
     pacienteEncontrado ||
-    (pacienteNoEncontrado &&
-      nombres.trim() &&
-      apellidoPaterno.trim() &&
-      sexo);
+    (nombres && apellidoPaterno && sexo);
 
   const listo =
     servicioId &&
     especialidadId &&
     camaId &&
-    pacienteValido &&
+    hc &&
     diagnosticoValido &&
-    transferenciaValida;
+    transferenciaValida &&
+    datosNuevoPacienteValidos;
 
   return (
     <div className="form-page ingreso-form-page">
