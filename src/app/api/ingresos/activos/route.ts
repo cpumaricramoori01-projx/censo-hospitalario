@@ -1,24 +1,47 @@
 // src/app/api/ingresos/activos/route.ts
 // Lista ingresos que AUN NO tienen egreso registrado (pacientes
-// actualmente internados). Uso: GET /api/ingresos/activos?hc=00001234
- 
+// actualmente internados). Permite buscar por HC, DNI o nombres/apellidos.
+
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { ingresos, egresos, pacientesRef, camas, especialidades, servicios } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
- 
+import {
+  ingresos,
+  egresos,
+  pacientesRef,
+  camas,
+  especialidades,
+  servicios,
+} from "@/db/schema";
+import { and, eq, isNull, like, or } from "drizzle-orm";
+
 export async function GET(request: NextRequest) {
   try {
-    const hc = request.nextUrl.searchParams.get("hc");
- 
-    const condiciones = hc
-      ? and(isNull(egresos.id), eq(ingresos.hc, hc))
+    const hc = request.nextUrl.searchParams.get("hc")?.trim() ?? "";
+    const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+
+    const termino = q.length >= 2 ? `%${q}%` : "";
+
+    const busqueda = q.length >= 2
+      ? or(
+          like(pacientesRef.hc, termino),
+          like(pacientesRef.dni, termino),
+          like(pacientesRef.nombres, termino),
+          like(pacientesRef.apellidoPaterno, termino),
+          like(pacientesRef.apellidoMaterno, termino),
+        )
+      : hc
+        ? eq(ingresos.hc, hc)
+        : undefined;
+
+    const condiciones = busqueda
+      ? and(isNull(egresos.id), busqueda)
       : isNull(egresos.id);
- 
+
     const data = await db
       .select({
         ingresoId: ingresos.id,
         hc: ingresos.hc,
+        dni: pacientesRef.dni,
         camaId: ingresos.camaId,
         fechaIngreso: ingresos.fechaIngreso,
         nombres: pacientesRef.nombres,
@@ -35,8 +58,9 @@ export async function GET(request: NextRequest) {
       .innerJoin(camas, eq(camas.id, ingresos.camaId))
       .innerJoin(especialidades, eq(especialidades.id, camas.especialidadId))
       .innerJoin(servicios, eq(servicios.id, especialidades.servicioId))
-      .where(condiciones);
- 
+      .where(condiciones)
+      .limit(20);
+
     return NextResponse.json(data);
   } catch (err) {
     console.error(err);
