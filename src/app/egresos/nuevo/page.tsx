@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 type IngresoActivo = {
   ingresoId: number;
   hc: string;
+  dni: string | null;
   camaId: number;
   fechaIngreso: string;
   nombres: string;
@@ -30,6 +31,7 @@ const TIPOS_EGRESO = [
 ];
 
 export default function NuevoEgresoPage() {
+  const [busqueda, setBusqueda] = useState("");
   const [hc, setHc] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState<IngresoActivo[]>([]);
@@ -46,29 +48,70 @@ export default function NuevoEgresoPage() {
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/servicios").then((r) => r.json()).then(setServicios);
+    fetch("/api/servicios")
+      .then((r) => r.json())
+      .then(setServicios)
+      .catch(() => setServicios([]));
   }, []);
 
-  async function buscar() {
-    if (!hc) return;
+  useEffect(() => {
+    const termino = busqueda.trim();
 
-    setBuscando(true);
+    if (termino.length < 2) {
+      setResultados([]);
+      setSeleccionado(null);
+      setBuscando(false);
+      return;
+    }
+
+    const controlador = new AbortController();
+    const temporizador = setTimeout(async () => {
+      setBuscando(true);
+      setSeleccionado(null);
+      setMensaje(null);
+
+      try {
+        const res = await fetch(
+          `/api/ingresos/activos?q=${encodeURIComponent(termino)}`,
+          { signal: controlador.signal },
+        );
+
+        if (!res.ok) throw new Error("No se pudo consultar las hospitalizaciones activas");
+
+        const data = await res.json();
+        setResultados(data);
+
+        if (data.length === 0) {
+          setMensaje("⚠️ No se encontró ninguna hospitalización activa con ese dato");
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        console.error(err);
+        setResultados([]);
+        setMensaje("❌ No se pudo realizar la búsqueda");
+      } finally {
+        if (!controlador.signal.aborted) setBuscando(false);
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(temporizador);
+      controlador.abort();
+    };
+  }, [busqueda]);
+
+  function seleccionarPaciente(ingreso: IngresoActivo) {
+    setSeleccionado(ingreso);
+    setHc(ingreso.hc);
+    setMensaje(null);
+  }
+
+  function limpiarBusqueda() {
+    setBusqueda("");
+    setHc("");
     setResultados([]);
     setSeleccionado(null);
     setMensaje(null);
-
-    try {
-      const res = await fetch(`/api/ingresos/activos?hc=${hc}`);
-      const data = await res.json();
-
-      setResultados(data);
-
-      if (data.length === 0) {
-        setMensaje("⚠️ No se encontró ningún ingreso activo con ese HC");
-      }
-    } finally {
-      setBuscando(false);
-    }
   }
 
   async function registrarEgreso() {
@@ -88,8 +131,8 @@ export default function NuevoEgresoPage() {
           servicioDestinoId: servicioDestinoId
             ? Number(servicioDestinoId)
             : undefined,
-          medicoAlta,
-          diagnosticoFinal,
+          medicoAlta: medicoAlta || undefined,
+          diagnosticoFinal: diagnosticoFinal || undefined,
         }),
       });
 
@@ -97,12 +140,9 @@ export default function NuevoEgresoPage() {
 
       if (res.ok) {
         setMensaje(
-          `✅ Egreso registrado correctamente (id ${data.id}). La cama quedó libre.`
+          `✅ Egreso registrado correctamente (id ${data.id}). La cama quedó libre.`,
         );
-
-        setHc("");
-        setResultados([]);
-        setSeleccionado(null);
+        limpiarBusqueda();
         setTipoEgreso("");
         setCodigoEgresoOriginal("");
         setServicioDestinoId("");
@@ -121,7 +161,7 @@ export default function NuevoEgresoPage() {
   const transferenciaValida =
     tipoEgreso !== "transferencia" || !!servicioDestinoId;
 
-  const listo = seleccionado && tipoEgreso && transferenciaValida;
+  const listo = !!seleccionado && !!tipoEgreso && transferenciaValida;
 
   return (
     <div className="form-page">
@@ -141,22 +181,15 @@ export default function NuevoEgresoPage() {
       </header>
 
       <div className="form-card">
-        {/* PASO 1 */}
         <section className="form-section">
-          <div className="form-section-title">
-            01 · Buscar paciente
-          </div>
-
+          <div className="form-section-title">01 · Buscar paciente</div>
           <p className="form-section-description">
-            Ingresa la historia clínica del paciente que actualmente se
-            encuentra hospitalizado.
+            Busca una hospitalización activa por historia clínica, DNI,
+            nombres o apellidos.
           </p>
 
           <div className="form-field">
-            <label className="form-label">
-              Historia clínica (HC)
-            </label>
-
+            <label className="form-label">Paciente hospitalizado</label>
             <div
               style={{
                 display: "grid",
@@ -166,19 +199,19 @@ export default function NuevoEgresoPage() {
             >
               <input
                 type="text"
-                value={hc}
-                onChange={(e) => setHc(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && buscar()}
-                placeholder="Ej. 00001234"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="HC, DNI, nombres o apellidos..."
                 className="form-input"
               />
 
               <button
-                onClick={buscar}
-                disabled={!hc || buscando}
-                className="btn btn-primary"
+                type="button"
+                onClick={() => setBusqueda("")}
+                disabled={!busqueda && !seleccionado}
+                className="btn btn-secondary"
               >
-                {buscando ? "Buscando..." : "Buscar paciente"}
+                Limpiar
               </button>
             </div>
           </div>
@@ -190,31 +223,35 @@ export default function NuevoEgresoPage() {
               color: "var(--muted)",
             }}
           >
-            Presiona Enter o utiliza el botón para realizar la búsqueda.
+            La búsqueda se realiza automáticamente desde 2 caracteres y solo
+            muestra pacientes con hospitalización activa.
           </p>
         </section>
 
-        {/* RESULTADOS */}
+        {buscando && (
+          <section className="form-section">
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
+              Buscando hospitalizaciones activas...
+            </p>
+          </section>
+        )}
+
         {resultados.length > 0 && (
           <section className="form-section">
-            <div className="form-section-title">
-              02 · Paciente encontrado
-            </div>
-
+            <div className="form-section-title">02 · Hospitalizaciones encontradas</div>
             <p className="form-section-description">
               Selecciona la estancia hospitalaria correspondiente.
             </p>
 
             <div style={{ display: "grid", gap: 10 }}>
               {resultados.map((r) => {
-                const estaSeleccionado =
-                  seleccionado?.ingresoId === r.ingresoId;
+                const estaSeleccionado = seleccionado?.ingresoId === r.ingresoId;
 
                 return (
                   <button
                     key={r.ingresoId}
                     type="button"
-                    onClick={() => setSeleccionado(r)}
+                    onClick={() => seleccionarPaciente(r)}
                     style={{
                       width: "100%",
                       textAlign: "left",
@@ -249,8 +286,7 @@ export default function NuevoEgresoPage() {
                             color: "var(--foreground)",
                           }}
                         >
-                          {r.nombres} {r.apellidoPaterno}{" "}
-                          {r.apellidoMaterno}
+                          {r.nombres} {r.apellidoPaterno} {r.apellidoMaterno ?? ""}
                         </div>
 
                         <div
@@ -261,6 +297,7 @@ export default function NuevoEgresoPage() {
                           }}
                         >
                           HC: <strong>{r.hc}</strong>
+                          {r.dni ? <> · DNI: <strong>{r.dni}</strong></> : null}
                         </div>
                       </div>
 
@@ -268,12 +305,8 @@ export default function NuevoEgresoPage() {
                         style={{
                           padding: "5px 9px",
                           borderRadius: 999,
-                          background: estaSeleccionado
-                            ? "#d5f1e3"
-                            : "#eef2f6",
-                          color: estaSeleccionado
-                            ? "var(--success)"
-                            : "#536171",
+                          background: estaSeleccionado ? "#d5f1e3" : "#eef2f6",
+                          color: estaSeleccionado ? "var(--success)" : "#536171",
                           fontSize: 11,
                           fontWeight: 700,
                         }}
@@ -290,53 +323,19 @@ export default function NuevoEgresoPage() {
                         gap: 8,
                       }}
                     >
-                      <span
-                        style={{
-                          padding: "6px 9px",
-                          borderRadius: 7,
-                          background: "#f4f6f8",
-                          fontSize: 12,
-                          color: "#465467",
-                        }}
-                      >
+                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>
                         {r.servicioNombre}
                       </span>
-
-                      <span
-                        style={{
-                          padding: "6px 9px",
-                          borderRadius: 7,
-                          background: "#f4f6f8",
-                          fontSize: 12,
-                          color: "#465467",
-                        }}
-                      >
+                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>
                         {r.especialidadNombre}
                       </span>
-
-                      <span
-                        style={{
-                          padding: "6px 9px",
-                          borderRadius: 7,
-                          background: "#e8f3f7",
-                          color: "var(--primary-dark)",
-                          fontSize: 12,
-                          fontWeight: 600,
-                        }}
-                      >
+                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#e8f3f7", color: "var(--primary-dark)", fontSize: 12, fontWeight: 600 }}>
                         Cama {r.numeroCama}
                       </span>
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: 10,
-                        fontSize: 12,
-                        color: "var(--muted)",
-                      }}
-                    >
-                      Ingresó:{" "}
-                      {new Date(r.fechaIngreso).toLocaleString()}
+                    <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
+                      Ingresó: {new Date(r.fechaIngreso).toLocaleString()}
                     </div>
                   </button>
                 );
@@ -345,60 +344,31 @@ export default function NuevoEgresoPage() {
           </section>
         )}
 
-        {/* FORMULARIO DE EGRESO */}
         {seleccionado && (
           <>
             <section className="form-section">
-              <div className="form-section-title">
-                03 · Datos del egreso
-              </div>
-
+              <div className="form-section-title">03 · Datos del egreso</div>
               <p className="form-section-description">
-                Registra el motivo y los datos correspondientes a la
-                salida del paciente.
+                Registra el motivo y los datos correspondientes a la salida del paciente.
               </p>
 
               <div className="form-field">
-                <label className="form-label">
-                  Tipo de egreso
-                </label>
-
-                <select
-                  value={tipoEgreso}
-                  onChange={(e) => setTipoEgreso(e.target.value)}
-                  className="form-select"
-                >
+                <label className="form-label">Tipo de egreso</label>
+                <select value={tipoEgreso} onChange={(e) => setTipoEgreso(e.target.value)} className="form-select">
                   <option value="">Selecciona...</option>
-
                   {TIPOS_EGRESO.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
+                    <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
               </div>
 
               {tipoEgreso === "transferencia" && (
                 <div className="form-field">
-                  <label className="form-label">
-                    Servicio de destino
-                  </label>
-
-                  <select
-                    value={servicioDestinoId}
-                    onChange={(e) =>
-                      setServicioDestinoId(e.target.value)
-                    }
-                    className="form-select"
-                  >
-                    <option value="">
-                      Selecciona el servicio de destino
-                    </option>
-
+                  <label className="form-label">Servicio de destino</label>
+                  <select value={servicioDestinoId} onChange={(e) => setServicioDestinoId(e.target.value)} className="form-select">
+                    <option value="">Selecciona el servicio de destino</option>
                     {servicios.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nombre}
-                      </option>
+                      <option key={s.id} value={s.id}>{s.nombre}</option>
                     ))}
                   </select>
                 </div>
@@ -407,161 +377,72 @@ export default function NuevoEgresoPage() {
               <div className="form-field">
                 <label className="form-label">
                   Código de egreso original
-                  <span
-                    style={{
-                      marginLeft: 6,
-                      color: "var(--muted)",
-                      fontWeight: 400,
-                    }}
-                  >
-                    (opcional)
-                  </span>
+                  <span style={{ marginLeft: 6, color: "var(--muted)", fontWeight: 400 }}>(opcional)</span>
                 </label>
-
                 <input
                   type="text"
                   value={codigoEgresoOriginal}
-                  onChange={(e) =>
-                    setCodigoEgresoOriginal(e.target.value)
-                  }
+                  onChange={(e) => setCodigoEgresoOriginal(e.target.value)}
                   placeholder="Ej. AH, AL, FA, AV, RE"
                   className="form-input"
                 />
-
-                <p
-                  style={{
-                    margin: "5px 0 0",
-                    fontSize: 12,
-                    color: "var(--muted)",
-                  }}
-                >
-                  Puedes registrar aquí el código utilizado por el
-                  hospital mientras se confirma su significado exacto.
+                <p style={{ margin: "5px 0 0", fontSize: 12, color: "var(--muted)" }}>
+                  Puedes registrar aquí el código utilizado por el hospital mientras se confirma su significado exacto.
                 </p>
               </div>
 
               <div className="form-grid-2">
                 <div className="form-field">
-                  <label className="form-label">
-                    Médico que da el alta
-                  </label>
-
-                  <input
-                    type="text"
-                    value={medicoAlta}
-                    onChange={(e) => setMedicoAlta(e.target.value)}
-                    className="form-input"
-                  />
+                  <label className="form-label">Médico que da el alta</label>
+                  <input type="text" value={medicoAlta} onChange={(e) => setMedicoAlta(e.target.value)} className="form-input" />
                 </div>
 
                 <div className="form-field">
-                  <label className="form-label">
-                    Diagnóstico final
-                  </label>
-
-                  <input
-                    type="text"
-                    value={diagnosticoFinal}
-                    onChange={(e) =>
-                      setDiagnosticoFinal(e.target.value)
-                    }
-                    className="form-input"
-                  />
+                  <label className="form-label">Diagnóstico final</label>
+                  <input type="text" value={diagnosticoFinal} onChange={(e) => setDiagnosticoFinal(e.target.value)} className="form-input" />
                 </div>
               </div>
             </section>
 
-            {/* CONFIRMACIÓN */}
             <section className="form-section">
-              <div className="form-section-title">
-                04 · Confirmación
-              </div>
+              <div className="form-section-title">04 · Confirmación</div>
 
-              <div
-                style={{
-                  border: "1px solid #cce4ec",
-                  background: "var(--primary-light)",
-                  borderRadius: 10,
-                  padding: 16,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--primary-dark)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
+              <div style={{ border: "1px solid #cce4ec", background: "var(--primary-light)", borderRadius: 10, padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-dark)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   Paciente seleccionado
                 </div>
-
-                <div
-                  style={{
-                    marginTop: 6,
-                    fontSize: 16,
-                    fontWeight: 700,
-                  }}
-                >
-                  {seleccionado.nombres}{" "}
-                  {seleccionado.apellidoPaterno}{" "}
-                  {seleccionado.apellidoMaterno}
+                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700 }}>
+                  {seleccionado.nombres} {seleccionado.apellidoPaterno} {seleccionado.apellidoMaterno ?? ""}
                 </div>
-
-                <div
-                  style={{
-                    marginTop: 5,
-                    fontSize: 13,
-                    color: "var(--muted)",
-                  }}
-                >
-                  HC {seleccionado.hc} · Cama{" "}
-                  {seleccionado.numeroCama} ·{" "}
-                  {seleccionado.servicioNombre}
+                <div style={{ marginTop: 5, fontSize: 13, color: "var(--muted)" }}>
+                  HC {seleccionado.hc} · Cama {seleccionado.numeroCama} · {seleccionado.servicioNombre}
                 </div>
               </div>
 
-              <div
-                style={{
-                  marginTop: 18,
-                  display: "flex",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
                 <button
                   onClick={registrarEgreso}
                   disabled={!listo || enviando}
                   className="btn btn-primary"
-                  style={{
-                    minWidth: 190,
-                    minHeight: 44,
-                  }}
+                  style={{ minWidth: 190, minHeight: 44 }}
                 >
-                  {enviando
-                    ? "Guardando..."
-                    : "✓ Registrar egreso"}
+                  {enviando ? "Guardando..." : "✓ Registrar egreso"}
                 </button>
               </div>
             </section>
           </>
         )}
 
-        {/* MENSAJE */}
         {mensaje && (
           <div
-            className="status-message"
             style={{
-              background: mensaje.startsWith("✅")
-                ? "var(--success-light)"
-                : mensaje.startsWith("⚠️")
-                ? "var(--warning-light)"
-                : "var(--danger-light)",
-              borderColor: mensaje.startsWith("✅")
-                ? "#b8e2d0"
-                : mensaje.startsWith("⚠️")
-                ? "#f3d69a"
-                : "#efc2c2",
+              marginTop: 4,
+              padding: "12px 14px",
+              borderRadius: 9,
+              background: mensaje.startsWith("❌") ? "#fff1f1" : "#edf8f3",
+              color: mensaje.startsWith("❌") ? "#a12b2b" : "#176b4a",
+              fontSize: 13,
+              fontWeight: 600,
             }}
           >
             {mensaje}
