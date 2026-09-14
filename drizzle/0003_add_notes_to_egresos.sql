@@ -1,0 +1,1 @@
+ALTER TABLE `egresos` ADD `notas` text;
