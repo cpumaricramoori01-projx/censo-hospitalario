@@ -1784,21 +1784,23 @@ manualmente.
             style={{
               display: "grid",
               gridTemplateColumns:
-                "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 10,
+                "repeat(2, minmax(0, 1fr))",
+              gap: 12,
             }}
           >
             <label
               style={{
+                minHeight: 46,
                 display: "flex",
                 alignItems: "center",
-                gap: 9,
-                padding: 12,
+                gap: 10,
+                padding: "10px 14px",
                 border: "1px solid var(--border)",
                 borderRadius: 8,
                 background: "#fafbfd",
                 cursor: "pointer",
                 fontSize: 13,
+                lineHeight: 1.3,
               }}
             >
               <input
@@ -1809,22 +1811,30 @@ manualmente.
                     e.target.checked,
                   )
                 }
+                style={{
+                  width: 16,
+                  height: 16,
+                  flex: "0 0 16px",
+                  margin: 0,
+                }}
               />
 
-              Problema judicial
+              <span>Problema judicial</span>
             </label>
 
             <label
               style={{
+                minHeight: 46,
                 display: "flex",
                 alignItems: "center",
-                gap: 9,
-                padding: 12,
+                gap: 10,
+                padding: "10px 14px",
                 border: "1px solid var(--border)",
                 borderRadius: 8,
                 background: "#fafbfd",
                 cursor: "pointer",
                 fontSize: 13,
+                lineHeight: 1.3,
               }}
             >
               <input
@@ -1835,13 +1845,24 @@ manualmente.
                     e.target.checked,
                   )
                 }
+                style={{
+                  width: 16,
+                  height: 16,
+                  flex: "0 0 16px",
+                  margin: 0,
+                }}
               />
 
-              Problema social
+              <span>Problema social</span>
             </label>
           </div>
 
-          <div className="form-field">
+          <div
+            className="form-field"
+            style={{
+              marginTop: 16,
+            }}
+          >
             <label className="form-label">
               Notas adicionales
 
@@ -1863,6 +1884,12 @@ manualmente.
                 setNotasEstancia(e.target.value)
               }
               className="form-textarea"
+              rows={4}
+              style={{
+                display: "block",
+                minHeight: 96,
+                resize: "vertical",
+              }}
             />
           </div>
         </section>
