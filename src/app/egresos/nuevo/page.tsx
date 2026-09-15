@@ -252,7 +252,12 @@ export default function NuevoEgresoPage() {
   }
 
   const transferenciaValida = tipoEgreso !== "transferencia" || !!servicioDestinoId;
-  const listo = !!seleccionado && !!tipoEgreso && transferenciaValida;
+  const listo =
+    !!seleccionado &&
+    !!tipoEgreso &&
+    !!medicoSeleccionado &&
+    !!diagnosticoSeleccionado &&
+    transferenciaValida;
 
   return (
     <div className="form-page">
@@ -335,62 +340,61 @@ export default function NuevoEgresoPage() {
               )}
 
               <div className="form-field">
-                <label className="form-label">Código de egreso original <span style={{ marginLeft: 6, color: "var(--muted)", fontWeight: 400 }}>(opcional)</span></label>
-                <input type="text" value={codigoEgresoOriginal} onChange={(e) => setCodigoEgresoOriginal(e.target.value)} placeholder="Ej. AH, AL, FA, AV, RE" className="form-input" />
-              </div>
-
-              <div className="form-grid-2">
-                <div className="form-field">
-                  <label className="form-label">Médico que da el alta</label>
-                  <div style={{ position: "relative" }}>
-                    <input type="text" value={medicoAlta} onChange={(e) => setMedicoAlta(e.target.value)} placeholder="Buscar por nombre, apellido o CMP..." className="form-input" autoComplete="off" />
-                    {buscandoMedicos && <div style={{ marginTop: 5, fontSize: 12, color: "var(--muted)" }}>Buscando médicos...</div>}
-                    {medicos.length > 0 && !medicoSeleccionado && (
-                      <div style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, marginTop: 4, border: "1px solid var(--border)", borderRadius: 9, background: "white", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-                        {medicos.map((m) => {
-                          const nombre = `${m.nombres} ${m.apellidoPaterno} ${m.apellidoMaterno ?? ""}`.trim();
-                          return <button key={m.id} type="button" onClick={() => seleccionarMedico(m)} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--border)", background: "white", padding: "10px 12px", cursor: "pointer" }}><div style={{ fontSize: 13, fontWeight: 700 }}>{nombre}</div><div style={{ marginTop: 3, fontSize: 11, color: "var(--muted)" }}>CMP {m.cmp}{m.especialidad ? ` · ${m.especialidad}` : ""}{m.servicio ? ` · ${m.servicio}` : ""}</div></button>;
-                        })}
-                      </div>
-                    )}
+                <label className="form-label">Médico de alta</label>
+                <input type="text" value={medicoAlta} onChange={(e) => setMedicoAlta(e.target.value)} placeholder="Buscar médico por nombre o CMP..." className="form-input" autoComplete="off" />
+                {buscandoMedicos && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--muted)" }}>Buscando médicos...</p>}
+                {medicos.length > 0 && (
+                  <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                    {medicos.map((m) => (
+                      <button key={m.id} type="button" onClick={() => seleccionarMedico(m)} style={{ width: "100%", textAlign: "left", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", background: "white", cursor: "pointer" }}>
+                        <strong>{m.nombres} {m.apellidoPaterno} {m.apellidoMaterno ?? ""}</strong>
+                        <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "var(--muted)" }}>CMP: {m.cmp} · {m.especialidad ?? "Sin especialidad"} · {m.servicio}</span>
+                      </button>
+                    ))}
                   </div>
-                </div>
-
-                <div className="form-field">
-                  <label className="form-label">Diagnóstico final</label>
-                  <div style={{ position: "relative" }}>
-                    <input type="text" value={diagnosticoFinal} onChange={(e) => setDiagnosticoFinal(e.target.value)} placeholder="Buscar por CIE-10 o descripción..." className="form-input" autoComplete="off" />
-                    {buscandoDiagnosticos && <div style={{ marginTop: 5, fontSize: 12, color: "var(--muted)" }}>Buscando diagnósticos...</div>}
-                    {diagnosticos.length > 0 && !diagnosticoSeleccionado && (
-                      <div style={{ position: "absolute", zIndex: 20, top: "100%", left: 0, right: 0, marginTop: 4, border: "1px solid var(--border)", borderRadius: 9, background: "white", boxShadow: "var(--shadow-sm)", overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
-                        {diagnosticos.map((d) => <button key={d.id} type="button" onClick={() => seleccionarDiagnostico(d)} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--border)", background: "white", padding: "10px 12px", cursor: "pointer" }}><div style={{ fontSize: 13, fontWeight: 700 }}>{d.codigo}</div><div style={{ marginTop: 3, fontSize: 12, color: "var(--muted)" }}>{d.descripcion}</div></button>)}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="form-field">
-                <label className="form-label">Notas adicionales <span style={{ marginLeft: 6, color: "var(--muted)", fontWeight: 400 }}>(opcional)</span></label>
-                <textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones, indicaciones o información adicional relacionada con el egreso..." className="form-input" rows={4} style={{ resize: "vertical", minHeight: 100 }} />
+                <label className="form-label">Diagnóstico final</label>
+                <input type="text" value={diagnosticoFinal} onChange={(e) => setDiagnosticoFinal(e.target.value)} placeholder="Buscar diagnóstico por código o descripción..." className="form-input" autoComplete="off" />
+                {buscandoDiagnosticos && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--muted)" }}>Buscando diagnósticos...</p>}
+                {diagnosticos.length > 0 && (
+                  <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                    {diagnosticos.map((d) => (
+                      <button key={d.id} type="button" onClick={() => seleccionarDiagnostico(d)} style={{ width: "100%", textAlign: "left", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", background: "white", cursor: "pointer" }}>
+                        <strong>{d.codigo}</strong>
+                        <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "var(--muted)" }}>{d.descripcion}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            </section>
 
-            <section className="form-section">
-              <div className="form-section-title">04 · Confirmación</div>
-              <div style={{ border: "1px solid #cce4ec", background: "var(--primary-light)", borderRadius: 10, padding: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--primary-dark)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Paciente seleccionado</div>
-                <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700 }}>{seleccionado.nombres} {seleccionado.apellidoPaterno} {seleccionado.apellidoMaterno ?? ""}</div>
-                <div style={{ marginTop: 5, fontSize: 13, color: "var(--muted)" }}>HC {seleccionado.hc} · Cama {seleccionado.numeroCama} · {seleccionado.servicioNombre}</div>
+              <div className="form-field">
+                <label className="form-label">Código de egreso original <span style={{ fontWeight: 400, color: "var(--muted)" }}>(opcional)</span></label>
+                <input type="text" value={codigoEgresoOriginal} onChange={(e) => setCodigoEgresoOriginal(e.target.value)} placeholder="Código registrado originalmente, si corresponde..." className="form-input" />
               </div>
-              <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
-                <button onClick={registrarEgreso} disabled={!listo || enviando} className="btn btn-primary" style={{ minWidth: 190, minHeight: 44 }}>{enviando ? "Guardando..." : "✓ Registrar egreso"}</button>
+
+              <div className="form-field">
+                <label className="form-label">Notas adicionales <span style={{ fontWeight: 400, color: "var(--muted)" }}>(opcional)</span></label>
+                <textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones o información adicional del egreso..." className="form-input" rows={4} />
+              </div>
+
+              <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+                <button type="button" onClick={registrarEgreso} disabled={!listo || enviando} className="btn btn-primary">
+                  {enviando ? "Registrando..." : "Registrar egreso"}
+                </button>
               </div>
             </section>
           </>
         )}
 
-        {mensaje && <div style={{ marginTop: 4, padding: "12px 14px", borderRadius: 9, background: mensaje.startsWith("❌") ? "#fff1f1" : "#edf8f3", color: mensaje.startsWith("❌") ? "#a12b2b" : "#176b4a", fontSize: 13, fontWeight: 600 }}>{mensaje}</div>}
+        {mensaje && (
+          <section className="form-section">
+            <p style={{ margin: 0, fontSize: 13 }}>{mensaje}</p>
+          </section>
+        )}
       </div>
     </div>
   );
