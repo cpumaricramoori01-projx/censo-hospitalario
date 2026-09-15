@@ -40,6 +40,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Faltan campos obligatorios: ingresoId y tipoEgreso" }, { status: 400 });
     }
 
+    if (!medicoAlta?.trim()) {
+      return NextResponse.json({ error: "Debes indicar el médico de alta" }, { status: 400 });
+    }
+
+    if (!diagnosticoFinal?.trim()) {
+      return NextResponse.json({ error: "Debes indicar el diagnóstico final" }, { status: 400 });
+    }
+
     if (tipoEgreso === "transferencia" && !servicioDestinoId) {
       return NextResponse.json({ error: "Un egreso por transferencia debe indicar el servicio de destino" }, { status: 400 });
     }
@@ -61,8 +69,8 @@ export async function POST(request: NextRequest) {
         tipoEgreso,
         codigoEgresoOriginal,
         servicioDestinoId: tipoEgreso === "transferencia" ? servicioDestinoId : null,
-        medicoAlta,
-        diagnosticoFinal,
+        medicoAlta: medicoAlta.trim(),
+        diagnosticoFinal: diagnosticoFinal.trim(),
         notas: notas?.trim() || null,
       });
 
