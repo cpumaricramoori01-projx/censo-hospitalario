@@ -54,7 +54,6 @@ export default function NuevoEgresoPage() {
 
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [tipoEgreso, setTipoEgreso] = useState("");
-  const [codigoEgresoOriginal, setCodigoEgresoOriginal] = useState("");
   const [servicioDestinoId, setServicioDestinoId] = useState("");
 
   const [medicoAlta, setMedicoAlta] = useState("");
@@ -219,7 +218,6 @@ export default function NuevoEgresoPage() {
         body: JSON.stringify({
           ingresoId: seleccionado.ingresoId,
           tipoEgreso,
-          codigoEgresoOriginal: codigoEgresoOriginal || undefined,
           servicioDestinoId: servicioDestinoId ? Number(servicioDestinoId) : undefined,
           medicoAlta: medicoAlta || undefined,
           diagnosticoFinal: diagnosticoFinal || undefined,
@@ -232,7 +230,6 @@ export default function NuevoEgresoPage() {
         setMensaje(`✅ Egreso registrado correctamente (id ${data.id}). La cama quedó libre.`);
         limpiarBusqueda();
         setTipoEgreso("");
-        setCodigoEgresoOriginal("");
         setServicioDestinoId("");
         setMedicoAlta("");
         setMedicos([]);
@@ -369,11 +366,6 @@ export default function NuevoEgresoPage() {
                     ))}
                   </div>
                 )}
-              </div>
-
-              <div className="form-field">
-                <label className="form-label">Código de egreso original <span style={{ fontWeight: 400, color: "var(--muted)" }}>(opcional)</span></label>
-                <input type="text" value={codigoEgresoOriginal} onChange={(e) => setCodigoEgresoOriginal(e.target.value)} placeholder="Código registrado originalmente, si corresponde..." className="form-input" />
               </div>
 
               <div className="form-field">
