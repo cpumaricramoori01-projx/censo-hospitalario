@@ -62,13 +62,8 @@ export async function POST(request: NextRequest) {
       sexo?: "M" | "F";
       fechaNacimiento?: string;
       camaId: number;
-
-      // Se conserva para compatibilidad con registros/formularios anteriores.
       medico?: string;
-
-      // Nueva relación con el maestro de médicos.
       medicoId?: number | null;
-
       tipoIngreso: "normal" | "transferencia";
       servicioOrigenId?: number;
       financiamiento?: string;
@@ -84,30 +79,51 @@ export async function POST(request: NextRequest) {
     // VALIDACIONES BASICAS
     // ---------------------------------------------------------
 
-    if (!hc || !camaId) {
+    if (!hc?.trim() || !camaId) {
       return NextResponse.json(
-        {
-          error: "Faltan campos obligatorios: hc y camaId",
-        },
+        { error: "Faltan campos obligatorios: paciente (HC) y cama" },
+        { status: 400 },
+      );
+    }
+
+    if (!medicoId) {
+      return NextResponse.json(
+        { error: "Debes seleccionar un médico responsable" },
+        { status: 400 },
+      );
+    }
+
+    if (tipoIngreso !== "normal" && tipoIngreso !== "transferencia") {
+      return NextResponse.json(
+        { error: "Debes seleccionar un tipo de ingreso válido" },
+        { status: 400 },
+      );
+    }
+
+    if (!financiamiento?.trim()) {
+      return NextResponse.json(
+        { error: "Debes seleccionar el financiamiento" },
         { status: 400 },
       );
     }
 
     if (!diagnosticos || diagnosticos.length === 0) {
       return NextResponse.json(
-        {
-          error: "Debes indicar al menos un diagnóstico",
-        },
+        { error: "Debes indicar al menos un diagnóstico" },
+        { status: 400 },
+      );
+    }
+
+    if (diagnosticos.some((d) => !d?.cie10Descripcion?.trim())) {
+      return NextResponse.json(
+        { error: "Cada diagnóstico debe tener una descripción" },
         { status: 400 },
       );
     }
 
     if (tipoIngreso === "transferencia" && !servicioOrigenId) {
       return NextResponse.json(
-        {
-          error:
-            "Un ingreso por transferencia debe indicar el servicio de origen",
-        },
+        { error: "Un ingreso por transferencia debe indicar el servicio de origen" },
         { status: 400 },
       );
     }
@@ -117,23 +133,11 @@ export async function POST(request: NextRequest) {
     // ---------------------------------------------------------
 
     const ingresoId = await db.transaction(async (tx) => {
-      // -------------------------------------------------------
-      // 1. VERIFICAR QUE EL PACIENTE NO TENGA UN INGRESO ACTIVO
-      // -------------------------------------------------------
-
       const ingresoActivo = await tx
         .select({ id: ingresos.id })
         .from(ingresos)
-        .leftJoin(
-          egresos,
-          eq(egresos.ingresoId, ingresos.id),
-        )
-        .where(
-          and(
-            eq(ingresos.hc, hc),
-            isNull(egresos.id),
-          ),
-        )
+        .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
+        .where(and(eq(ingresos.hc, hc.trim()), isNull(egresos.id)))
         .limit(1);
 
       if (ingresoActivo.length > 0) {
@@ -143,45 +147,23 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // -------------------------------------------------------
-      // 2. VERIFICAR MEDICO SELECCIONADO
-      // -------------------------------------------------------
+      const medicoExistente = await tx
+        .select({ id: medicos.id })
+        .from(medicos)
+        .where(and(eq(medicos.id, medicoId), eq(medicos.activo, true)))
+        .limit(1);
 
-      if (medicoId !== undefined && medicoId !== null) {
-        const medicoExistente = await tx
-          .select({
-            id: medicos.id,
-          })
-          .from(medicos)
-          .where(
-            and(
-              eq(medicos.id, medicoId),
-              eq(medicos.activo, true),
-            ),
-          )
-          .limit(1);
-
-        if (medicoExistente.length === 0) {
-          throw new IngresoError(
-            "El médico seleccionado no existe o se encuentra inactivo.",
-            400,
-          );
-        }
+      if (medicoExistente.length === 0) {
+        throw new IngresoError(
+          "El médico seleccionado no existe o se encuentra inactivo.",
+          400,
+        );
       }
-
-      // -------------------------------------------------------
-      // 3. RESERVAR LA CAMA DE FORMA ATOMICA
-      // -------------------------------------------------------
 
       const reservaCama = await tx
         .update(camas)
         .set({ estado: "ocupada" })
-        .where(
-          and(
-            eq(camas.id, camaId),
-            eq(camas.estado, "libre"),
-          ),
-        );
+        .where(and(eq(camas.id, camaId), eq(camas.estado, "libre")));
 
       if (reservaCama[0].affectedRows === 0) {
         const camaExiste = await tx
@@ -191,30 +173,20 @@ export async function POST(request: NextRequest) {
           .limit(1);
 
         if (camaExiste.length === 0) {
-          throw new IngresoError(
-            "Cama no encontrada",
-            404,
-          );
+          throw new IngresoError("Cama no encontrada", 404);
         }
 
-        throw new IngresoError(
-          "Esa cama ya no está libre, elige otra",
-          409,
-        );
+        throw new IngresoError("Esa cama ya no está libre, elige otra", 409);
       }
-
-      // -------------------------------------------------------
-      // 4. VERIFICAR / CREAR PACIENTE
-      // -------------------------------------------------------
 
       const pacienteExistente = await tx
         .select({ hc: pacientesRef.hc })
         .from(pacientesRef)
-        .where(eq(pacientesRef.hc, hc))
+        .where(eq(pacientesRef.hc, hc.trim()))
         .limit(1);
 
       if (pacienteExistente.length === 0) {
-        if (!nombres || !apellidoPaterno || !sexo) {
+        if (!nombres?.trim() || !apellidoPaterno?.trim() || !sexo) {
           throw new IngresoError(
             "El paciente no existe. Debes indicar al menos nombres, apellido paterno y sexo para crearlo.",
             400,
@@ -222,107 +194,58 @@ export async function POST(request: NextRequest) {
         }
 
         await tx.insert(pacientesRef).values({
-          hc,
+          hc: hc.trim(),
           dni,
-          nombres,
-          apellidoPaterno,
+          nombres: nombres.trim(),
+          apellidoPaterno: apellidoPaterno.trim(),
           apellidoMaterno,
           sexo,
-          fechaNacimiento: fechaNacimiento
-            ? new Date(fechaNacimiento)
-            : undefined,
+          fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
           origenDato: "manual",
           fechaActualizacion: new Date(),
         });
       }
 
-      // -------------------------------------------------------
-      // 5. CREAR INGRESO
-      // -------------------------------------------------------
+      const resultIngreso = await tx.insert(ingresos).values({
+        hc: hc.trim(),
+        camaId,
+        fechaIngreso: new Date(),
+        medico,
+        medicoId,
+        tipoIngreso,
+        servicioOrigenId: tipoIngreso === "transferencia" ? servicioOrigenId : null,
+        financiamiento: financiamiento.trim(),
+        usaVentilador: !!usaVentilador,
+        usaOxigeno: !!usaOxigeno,
+        tieneProblemaJudicial: !!tieneProblemaJudicial,
+        tieneProblemaSocial: !!tieneProblemaSocial,
+        notasEstancia,
+      });
 
-      const resultIngreso = await tx
-        .insert(ingresos)
-        .values({
-          hc,
-          camaId,
-          fechaIngreso: new Date(),
+      const nuevoIngresoId = resultIngreso[0].insertId;
 
-          // Se conserva el texto por compatibilidad.
-          medico,
-
-          // Nueva relación con el maestro de médicos.
-          medicoId:
-            medicoId !== undefined && medicoId !== null
-              ? medicoId
-              : null,
-
-          tipoIngreso,
-
-          servicioOrigenId:
-            tipoIngreso === "transferencia"
-              ? servicioOrigenId
-              : null,
-
-          financiamiento,
-          usaVentilador: !!usaVentilador,
-          usaOxigeno: !!usaOxigeno,
-          tieneProblemaJudicial:
-            !!tieneProblemaJudicial,
-          tieneProblemaSocial:
-            !!tieneProblemaSocial,
-          notasEstancia,
-        });
-
-      const nuevoIngresoId =
-        resultIngreso[0].insertId;
-
-      // -------------------------------------------------------
-      // 6. CREAR DIAGNOSTICOS
-      // -------------------------------------------------------
-
-      await tx
-        .insert(diagnosticosIngreso)
-        .values(
-          diagnosticos.map((d, i) => ({
-            ingresoId: nuevoIngresoId,
-            orden: i + 1,
-            cie10Codigo: d.cie10Codigo,
-            cie10Descripcion:
-              d.cie10Descripcion,
-          })),
-        );
-
-      // La cama ya fue marcada como ocupada
-      // en el paso 3, dentro de la misma transaccion.
+      await tx.insert(diagnosticosIngreso).values(
+        diagnosticos.map((d, i) => ({
+          ingresoId: nuevoIngresoId,
+          orden: i + 1,
+          cie10Codigo: d.cie10Codigo?.trim() || null,
+          cie10Descripcion: d.cie10Descripcion.trim(),
+        })),
+      );
 
       return nuevoIngresoId;
     });
 
-    // ---------------------------------------------------------
-    // TRANSACCION COMPLETADA
-    // ---------------------------------------------------------
-
-    return NextResponse.json(
-      { id: ingresoId },
-      { status: 201 },
-    );
+    return NextResponse.json({ id: ingresoId }, { status: 201 });
   } catch (err) {
     console.error(err);
 
     if (err instanceof IngresoError) {
-      return NextResponse.json(
-        { error: err.message },
-        { status: err.status },
-      );
+      return NextResponse.json({ error: err.message }, { status: err.status });
     }
 
     return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
+      { error: err instanceof Error ? err.message : "Error desconocido" },
       { status: 500 },
     );
   }
