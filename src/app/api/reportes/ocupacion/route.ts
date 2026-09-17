@@ -10,15 +10,12 @@ export async function GET(request: NextRequest) {
     const especialidadId = searchParams.get("especialidadId");
     const estado = searchParams.get("estado");
 
-    const condiciones = [];
-    if (servicioId && servicioId !== "todos") condiciones.push(eq(servicios.id, Number(servicioId)));
-    if (especialidadId && especialidadId !== "todos") condiciones.push(eq(especialidades.id, Number(especialidadId)));
-    if (estado && estado !== "todos") {
-      if (estado === "ocupada") condiciones.push(eq(ingresos.id, ingresos.id));
-      else condiciones.push(eq(camas.estado, estado));
-    }
+    const condicionesCamas = [];
+    if (servicioId && servicioId !== "todos") condicionesCamas.push(eq(servicios.id, Number(servicioId)));
+    if (especialidadId && especialidadId !== "todos") condicionesCamas.push(eq(especialidades.id, Number(especialidadId)));
+    if (estado === "libre" || estado === "inoperativa") condicionesCamas.push(eq(camas.estado, estado));
 
-    const filas = await db
+    const camasRows = await db
       .select({
         id: camas.id,
         numero: camas.numero,
@@ -28,6 +25,15 @@ export async function GET(request: NextRequest) {
         especialidad: especialidades.nombre,
         servicioId: servicios.id,
         servicio: servicios.nombre,
+      })
+      .from(camas)
+      .innerJoin(especialidades, eq(camas.especialidadId, especialidades.id))
+      .innerJoin(servicios, eq(especialidades.servicioId, servicios.id))
+      .where(condicionesCamas.length ? and(...condicionesCamas) : undefined);
+
+    const activos = await db
+      .select({
+        camaId: ingresos.camaId,
         ingresoId: ingresos.id,
         hc: ingresos.hc,
         fechaIngreso: ingresos.fechaIngreso,
@@ -35,24 +41,28 @@ export async function GET(request: NextRequest) {
         apellidoPaterno: pacientesRef.apellidoPaterno,
         apellidoMaterno: pacientesRef.apellidoMaterno,
       })
-      .from(camas)
-      .innerJoin(especialidades, eq(camas.especialidadId, especialidades.id))
-      .innerJoin(servicios, eq(especialidades.servicioId, servicios.id))
-      .leftJoin(ingresos, and(eq(ingresos.camaId, camas.id), isNull(egresos.id)))
+      .from(ingresos)
       .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
-      .leftJoin(pacientesRef, eq(ingresos.hc, pacientesRef.hc))
-      .where(condiciones.length ? and(...condiciones) : undefined);
+      .innerJoin(pacientesRef, eq(ingresos.hc, pacientesRef.hc))
+      .where(isNull(egresos.id));
 
-    const resultado = filas.map((f) => {
-      const ocupada = f.ingresoId !== null;
+    const porCama = new Map(activos.map((a) => [a.camaId, a]));
+    let resultado = camasRows.map((c) => {
+      const activo = porCama.get(c.id);
+      const ocupada = Boolean(activo);
       return {
-        ...f,
-        estado: ocupada ? "ocupada" : f.estadoCama,
-        estadoTexto: ocupada ? "Ocupada" : f.estadoCama === "libre" ? "Libre" : "Inoperativa",
-        paciente: ocupada ? [f.nombres, f.apellidoPaterno, f.apellidoMaterno].filter(Boolean).join(" ") : null,
-        diasEstancia: ocupada && f.fechaIngreso ? Math.max(0, Math.floor((Date.now() - new Date(f.fechaIngreso).getTime()) / 86400000)) : null,
+        ...c,
+        estado: ocupada ? "ocupada" : c.estadoCama,
+        estadoTexto: ocupada ? "Ocupada" : c.estadoCama === "libre" ? "Libre" : "Inoperativa",
+        ingresoId: activo?.ingresoId ?? null,
+        hc: activo?.hc ?? null,
+        fechaIngreso: activo?.fechaIngreso ?? null,
+        paciente: activo ? [activo.nombres, activo.apellidoPaterno, activo.apellidoMaterno].filter(Boolean).join(" ") : null,
+        diasEstancia: activo ? Math.max(0, Math.floor((Date.now() - new Date(activo.fechaIngreso).getTime()) / 86400000)) : null,
       };
     });
+
+    if (estado === "ocupada") resultado = resultado.filter((c) => c.estado === "ocupada");
 
     const resumen = {
       total: resultado.length,
