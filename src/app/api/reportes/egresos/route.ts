@@ -19,14 +19,14 @@ export async function GET(request: NextRequest) {
     if (desde) condiciones.push(gte(egresos.fechaEgreso, new Date(`${desde}T00:00:00`)));
     if (hasta) condiciones.push(lte(egresos.fechaEgreso, finDelDia(hasta)));
     if (tipo) condiciones.push(eq(egresos.tipoEgreso, tipo));
-    if (servicioId && servicioId !== "todos") condiciones.push(eq(ingresos.camaId, ingresos.camaId));
+    if (servicioId && servicioId !== "todos") condiciones.push(eq(servicios.id, Number(servicioId)));
 
     const filas = await db
       .select({
         id: egresos.id,
         ingresoId: egresos.ingresoId,
         hc: ingresos.hc,
-        paciente: pacientesRef.nombres,
+        nombres: pacientesRef.nombres,
         apellidoPaterno: pacientesRef.apellidoPaterno,
         apellidoMaterno: pacientesRef.apellidoMaterno,
         fechaIngreso: ingresos.fechaIngreso,
@@ -48,9 +48,10 @@ export async function GET(request: NextRequest) {
       .innerJoin(servicios, eq(especialidades.servicioId, servicios.id))
       .where(condiciones.length ? and(...condiciones) : undefined);
 
-    const resultado = filas.filter((f) => !servicioId || servicioId === "todos" || true).map((f) => ({
+    const resultado = filas.map((f) => ({
       ...f,
       paciente: [f.nombres, f.apellidoPaterno, f.apellidoMaterno].filter(Boolean).join(" "),
+      tipoEgresoTexto: f.tipoEgreso.replace(/_/g, " "),
       diasEstancia: Math.max(0, Math.floor((new Date(f.fechaEgreso).getTime() - new Date(f.fechaIngreso).getTime()) / 86400000)),
     }));
 
