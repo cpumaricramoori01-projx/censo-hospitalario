@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         notas: egresos.notas,
         cama: camas.numero,
         especialidad: especialidades.nombre,
+        servicioId: servicios.id,
         servicio: servicios.nombre,
       })
       .from(egresos)
