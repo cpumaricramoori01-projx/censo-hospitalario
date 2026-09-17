@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   ingresos,
@@ -22,16 +22,35 @@ export async function GET(request: NextRequest) {
 
     const filtros = [];
 
-    if (desde) filtros.push(gte(ingresos.fechaIngreso, new Date(`${desde}T00:00:00`)));
-    if (hasta) filtros.push(lte(ingresos.fechaIngreso, new Date(`${hasta}T23:59:59`)));
-    if (servicioId && /^\d+$/.test(servicioId)) filtros.push(eq(servicios.id, Number(servicioId)));
-    if (tipo === "normal" || tipo === "transferencia") filtros.push(eq(ingresos.tipoIngreso, tipo));
+    if (desde) {
+      filtros.push(gte(ingresos.fechaIngreso, new Date(`${desde}T00:00:00`)));
+    }
+
+    if (hasta) {
+      filtros.push(lte(ingresos.fechaIngreso, new Date(`${hasta}T23:59:59`)));
+    }
+
+    if (servicioId && servicioId !== "todos") {
+      if (/^\d+$/.test(servicioId)) {
+        filtros.push(eq(servicios.id, Number(servicioId)));
+      } else {
+        // Compatibilidad con la versión anterior de la pantalla,
+        // que enviaba el nombre del servicio en lugar de su ID.
+        filtros.push(eq(servicios.nombre, servicioId));
+      }
+    }
+
+    if (tipo === "normal" || tipo === "transferencia") {
+      filtros.push(eq(ingresos.tipoIngreso, tipo));
+    }
 
     const rows = await db
       .select({
         id: ingresos.id,
         hc: ingresos.hc,
-        paciente: sql<string>`concat(${pacientesRef.nombres}, ' ', ${pacientesRef.apellidoPaterno}, ifnull(concat(' ', ${pacientesRef.apellidoMaterno}), ''))`,
+        nombres: pacientesRef.nombres,
+        apellidoPaterno: pacientesRef.apellidoPaterno,
+        apellidoMaterno: pacientesRef.apellidoMaterno,
         fechaIngreso: ingresos.fechaIngreso,
         tipoIngreso: ingresos.tipoIngreso,
         financiamiento: ingresos.financiamiento,
@@ -39,10 +58,14 @@ export async function GET(request: NextRequest) {
         ubicacion: camas.ubicacion,
         especialidad: especialidades.nombre,
         servicio: servicios.nombre,
-        medico: sql<string>`ifnull(concat(${medicos.nombres}, ' ', ${medicos.apellidoPaterno}, ifnull(concat(' ', ${medicos.apellidoMaterno}), '')), ${ingresos.medico}, '')`,
+        medicoId: medicos.id,
+        medicoNombres: medicos.nombres,
+        medicoApellidoPaterno: medicos.apellidoPaterno,
+        medicoApellidoMaterno: medicos.apellidoMaterno,
+        medicoRegistrado: ingresos.medico,
         diagnosticoCodigo: diagnosticosIngreso.cie10Codigo,
         diagnostico: diagnosticosIngreso.cie10Descripcion,
-        activo: sql<boolean>`case when ${egresos.id} is null then true else false end`,
+        egresoId: egresos.id,
       })
       .from(ingresos)
       .innerJoin(pacientesRef, eq(pacientesRef.hc, ingresos.hc))
@@ -51,15 +74,57 @@ export async function GET(request: NextRequest) {
       .innerJoin(servicios, eq(servicios.id, especialidades.servicioId))
       .leftJoin(medicos, eq(medicos.id, ingresos.medicoId))
       .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
-      .leftJoin(diagnosticosIngreso, and(eq(diagnosticosIngreso.ingresoId, ingresos.id), eq(diagnosticosIngreso.orden, 1)))
+      .leftJoin(
+        diagnosticosIngreso,
+        and(
+          eq(diagnosticosIngreso.ingresoId, ingresos.id),
+          eq(diagnosticosIngreso.orden, 1),
+        ),
+      )
       .where(filtros.length ? and(...filtros) : undefined)
       .orderBy(asc(ingresos.fechaIngreso), asc(ingresos.id));
 
-    return NextResponse.json(rows);
+    const resultado = rows.map((item) => ({
+      id: item.id,
+      hc: item.hc,
+      paciente: [
+        item.nombres,
+        item.apellidoPaterno,
+        item.apellidoMaterno,
+      ]
+        .filter(Boolean)
+        .join(" "),
+      fechaIngreso: item.fechaIngreso,
+      tipoIngreso: item.tipoIngreso,
+      financiamiento: item.financiamiento,
+      cama: item.cama,
+      ubicacion: item.ubicacion,
+      especialidad: item.especialidad,
+      servicio: item.servicio,
+      medico: item.medicoId
+        ? [
+            item.medicoNombres,
+            item.medicoApellidoPaterno,
+            item.medicoApellidoMaterno,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : item.medicoRegistrado ?? "",
+      diagnosticoCodigo: item.diagnosticoCodigo,
+      diagnostico: item.diagnostico,
+      activo: item.egresoId == null,
+    }));
+
+    return NextResponse.json(resultado);
   } catch (error) {
-    console.error(error);
+    console.error("Error obteniendo reporte de ingresos:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "No se pudo consultar el reporte de ingresos." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo consultar el reporte de ingresos.",
+      },
       { status: 500 },
     );
   }
