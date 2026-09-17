@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
     const condicionesCamas = [];
     if (servicioId && servicioId !== "todos") condicionesCamas.push(eq(servicios.id, Number(servicioId)));
     if (especialidadId && especialidadId !== "todos") condicionesCamas.push(eq(especialidades.id, Number(especialidadId)));
-    if (estado === "libre" || estado === "inoperativa") condicionesCamas.push(eq(camas.estado, estado));
 
     const camasRows = await db
       .select({
@@ -62,7 +61,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    if (estado === "ocupada") resultado = resultado.filter((c) => c.estado === "ocupada");
+    if (estado && estado !== "todos") resultado = resultado.filter((c) => c.estado === estado);
 
     const resumen = {
       total: resultado.length,
