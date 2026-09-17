@@ -17,11 +17,12 @@ type Paciente = {
   usaVentilador: boolean;
 };
 
-const reportesPendientes = [
-  { titulo: "Ingresos", descripcion: "Ingresos hospitalarios por período, servicio, especialidad y tipo.", icono: "↓", color: "green" },
-  { titulo: "Egresos", descripcion: "Egresos registrados y principales datos de atención y destino.", icono: "↑", color: "orange" },
-  { titulo: "Ocupación de camas", descripcion: "Estado y distribución de camas por servicio y especialidad.", icono: "▦", color: "purple" },
-  { titulo: "Estancia hospitalaria", descripcion: "Días de hospitalización y seguimiento de estancias prolongadas.", icono: "◷", color: "red" },
+const reportesDisponibles = [
+  { titulo: "Censo actual", descripcion: "Pacientes actualmente hospitalizados, ubicación, diagnóstico, estancia y soporte respiratorio.", icono: "▤", color: "blue", href: "/reportes" },
+  { titulo: "Ingresos", descripcion: "Ingresos hospitalarios por período, servicio, especialidad y tipo.", icono: "↓", color: "green", href: "/reportes/ingresos" },
+  { titulo: "Egresos", descripcion: "Egresos registrados y principales datos de atención y destino.", icono: "↑", color: "orange", href: "/reportes/egresos" },
+  { titulo: "Ocupación de camas", descripcion: "Estado y distribución de camas por servicio y especialidad.", icono: "▦", color: "purple", href: "/reportes/ocupacion" },
+  { titulo: "Estancia hospitalaria", descripcion: "Días de hospitalización y seguimiento de estancias prolongadas.", icono: "◷", color: "red", href: "/reportes/estancia" },
 ];
 
 function diasEstancia(fecha: string) {
@@ -74,7 +75,7 @@ export default function ReportesPage() {
   const exportarExcel = () => {
     const encabezados = ["HC", "Paciente", "Servicio", "Especialidad", "Cama", "Médico", "Fecha ingreso", "Días estancia", "Código diagnóstico", "Diagnóstico", "Oxígeno", "Ventilador"];
     const filas = filtrados.map((p) => [p.hc, p.paciente, p.servicio.nombre, p.especialidad.nombre, p.cama.numero, p.medico?.nombre ?? "", fechaCorta(p.fechaIngreso), diasEstancia(p.fechaIngreso), p.diagnostico.codigo ?? "", p.diagnostico.descripcion ?? "", p.usaOxigeno ? "Sí" : "No", p.usaVentilador ? "Sí" : "No"]);
-    const esc = (valor: string | number) => String(valor).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const esc = (valor: string | number) => String(valor).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
     const tabla = `<table><thead><tr>${encabezados.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${filas.map((fila) => `<tr>${fila.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
     const html = `<html><head><meta charset="utf-8"><style>table{border-collapse:collapse;font-family:Arial;font-size:10pt}th,td{border:1px solid #b8c2cc;padding:6px}th{font-weight:bold;background:#e9eef3}</style></head><body><h2>Hospital Regional Eleazar Guzmán Barrón</h2><h3>Reporte de Censo Hospitalario</h3><p>Registros: ${filas.length} | Generado: ${new Date().toLocaleString("es-PE")}</p>${tabla}</body></html>`;
     const blob = new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" });
@@ -126,12 +127,20 @@ export default function ReportesPage() {
         </section>
 
         <section className="reportes-no-print" style={{ marginBottom: 22 }}>
-          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Reportes disponibles</h2><p>Actualmente habilitado: <strong>Censo actual</strong>.</p></div></div>
-          <article className="dashboard-card" style={{ padding: 15, border: "1px solid var(--primary)", boxShadow: "var(--shadow-sm)" }}>
-            <div className="dashboard-card-header"><div className="dashboard-card-icon blue" style={{ width: 38, height: 38, fontSize: 16 }}>▤</div><span style={{ fontSize: 8, fontWeight: 900, color: "var(--primary)", background: "var(--primary-light)", padding: "4px 7px", borderRadius: 999 }}>DISPONIBLE</span></div>
-            <h2 style={{ marginTop: 11, fontSize: 14 }}>Censo actual</h2>
-            <p style={{ marginTop: 5, lineHeight: 1.4 }}>Pacientes actualmente hospitalizados, ubicación, diagnóstico, estancia y recursos clínicos.</p>
-          </article>
+          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Reportes disponibles</h2><p>Seleccione un reporte para consultar su información, aplicar filtros y generar la salida correspondiente.</p></div></div>
+          <div className="dashboard-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            {reportesDisponibles.map((r) => (
+              <Link key={r.titulo} href={r.href} className="dashboard-card" style={{ padding: 15, border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", textDecoration: "none", color: "inherit" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                  <div className={`dashboard-card-icon ${r.color}`} style={{ width: 38, height: 38, fontSize: 16 }}>{r.icono}</div>
+                  <span style={{ fontSize: 8, fontWeight: 900, color: "var(--primary)", background: "var(--primary-light)", padding: "4px 7px", borderRadius: 999 }}>DISPONIBLE</span>
+                </div>
+                <h2 style={{ marginTop: 11, fontSize: 14 }}>{r.titulo}</h2>
+                <p style={{ marginTop: 5, lineHeight: 1.4 }}>{r.descripcion}</p>
+                <span style={{ display: "inline-block", marginTop: 10, color: "var(--primary)", fontSize: 10, fontWeight: 800 }}>Abrir reporte →</span>
+              </Link>
+            ))}
+          </div>
         </section>
 
         <section className="reportes-no-print" style={{ marginBottom: 18 }}>
@@ -154,14 +163,7 @@ export default function ReportesPage() {
               <button type="button" onClick={exportarExcel} disabled={cargando || filtrados.length === 0} style={{ border: "1px solid #4f7b58", background: "#fff", color: "#38633f", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer", opacity: cargando || filtrados.length === 0 ? .5 : 1 }}>📊 Excel</button>
             </div>
           </div>
-          {cargando ? <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>Cargando pacientes hospitalizados...</div> : filtrados.length === 0 ? <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>No hay pacientes que coincidan con los filtros seleccionados.</div> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}><thead><tr style={{ background: "#f8fafb" }}>{["Paciente / HC", "Servicio / Especialidad", "Cama", "Ingreso", "Estancia", "Diagnóstico", "Recursos"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "var(--muted)", fontSize: 8.5, textTransform: "uppercase", letterSpacing: ".06em", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead><tbody>{filtrados.map((p) => <tr key={p.ingresoId} style={{ borderTop: "1px solid #edf1f3" }}><td style={{ padding: "8px 10px", minWidth: 170 }}><strong style={{ display: "block", fontSize: 11 }}>{p.paciente}</strong><span style={{ color: "var(--muted)", fontSize: 9 }}>HC {p.hc}</span></td><td style={{ padding: "8px 10px", minWidth: 155 }}><strong style={{ fontSize: 10.5 }}>{p.servicio.nombre}</strong><span style={{ display: "block", marginTop: 2, color: "var(--muted)", fontSize: 9 }}>{p.especialidad.nombre}</span></td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Cama {p.cama.numero}</td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{fechaCorta(p.fechaIngreso)}</td><td style={{ padding: "8px 10px", whiteSpace: "nowrap", fontWeight: 800 }}>{diasEstancia(p.fechaIngreso)} d.</td><td style={{ padding: "8px 10px", minWidth: 200, maxWidth: 280 }}>{p.diagnostico.codigo && <strong>{p.diagnostico.codigo} · </strong>}<span style={{ color: "var(--muted)" }}>{p.diagnostico.descripcion || "—"}</span></td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{p.usaOxigeno && <span style={{ marginRight: 4, padding: "3px 6px", borderRadius: 999, background: "var(--primary-light)", color: "var(--primary-dark)", fontSize: 8.5, fontWeight: 800 }}>O₂</span>}{p.usaVentilador && <span style={{ padding: "3px 6px", borderRadius: 999, background: "var(--secondary-light)", color: "var(--secondary)", fontSize: 8.5, fontWeight: 800 }}>VENT</span>}{!p.usaOxigeno && !p.usaVentilador && "—"}</td></tr>)}</tbody></table></div>}
-        </section>
-
-        <section className="reportes-no-print" style={{ marginTop: 22 }}>
-          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Reportes en desarrollo</h2><p>Se habilitarán progresivamente con sus propios filtros, consultas y exportaciones.</p></div></div>
-          <div className="dashboard-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-            {reportesPendientes.map((r) => <article key={r.titulo} className="dashboard-card" style={{ padding: 15, opacity: .82, border: "1px solid var(--border)" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}><div className={`dashboard-card-icon ${r.color}`} style={{ width: 36, height: 36, fontSize: 16 }}>{r.icono}</div><span style={{ padding: "4px 7px", borderRadius: 999, background: "#f3f4f6", color: "var(--muted)", fontSize: 8, fontWeight: 800 }}>EN DESARROLLO</span></div><h2 style={{ marginTop: 11, fontSize: 14 }}>{r.titulo}</h2><p style={{ marginTop: 5, lineHeight: 1.4 }}>{r.descripcion}</p></article>)}
-          </div>
+          {cargando ? <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>Cargando pacientes hospitalizados...</div> : filtrados.length === 0 ? <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>No hay pacientes que coincidan con los filtros seleccionados.</div> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}><thead><tr style={{ background: "#f8fafb" }}>{["Paciente / HC", "Servicio / Especialidad", "Cama", "Ingreso", "Estancia", "Diagnóstico", "Soporte respiratorio"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "var(--muted)", fontSize: 8.5, textTransform: "uppercase", letterSpacing: ".06em", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead><tbody>{filtrados.map((p) => <tr key={p.ingresoId} style={{ borderTop: "1px solid #edf1f3" }}><td style={{ padding: "8px 10px", minWidth: 170 }}><strong style={{ display: "block", fontSize: 11 }}>{p.paciente}</strong><span style={{ color: "var(--muted)", fontSize: 9 }}>HC {p.hc}</span></td><td style={{ padding: "8px 10px", minWidth: 155 }}><strong style={{ fontSize: 10.5 }}>{p.servicio.nombre}</strong><span style={{ display: "block", marginTop: 2, color: "var(--muted)", fontSize: 9 }}>{p.especialidad.nombre}</span></td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Cama {p.cama.numero}</td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{fechaCorta(p.fechaIngreso)}</td><td style={{ padding: "8px 10px", whiteSpace: "nowrap", fontWeight: 800 }}>{diasEstancia(p.fechaIngreso)} d.</td><td style={{ padding: "8px 10px", minWidth: 200, maxWidth: 280 }}>{p.diagnostico.codigo && <strong>{p.diagnostico.codigo} · </strong>}<span style={{ color: "var(--muted)" }}>{p.diagnostico.descripcion || "—"}</span></td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{p.usaOxigeno && <span style={{ marginRight: 4, padding: "3px 6px", borderRadius: 999, background: "var(--primary-light)", color: "var(--primary-dark)", fontSize: 8.5, fontWeight: 800 }}>Oxígeno</span>}{p.usaVentilador && <span style={{ padding: "3px 6px", borderRadius: 999, background: "var(--secondary-light)", color: "var(--secondary)", fontSize: 8.5, fontWeight: 800 }}>Ventilador</span>}{!p.usaOxigeno && !p.usaVentilador && "Sin soporte"}</td></tr>)}</tbody></table></div>}
         </section>
 
         <section className="reportes-print">
@@ -177,8 +179,8 @@ export default function ReportesPage() {
           </div>
           {(busqueda || servicio !== "todos" || especialidad !== "todos") && <div style={{ marginBottom: 10, padding: 7, border: "1px solid #bbb", fontSize: 8 }}><strong>Filtros aplicados:</strong>{busqueda && ` búsqueda “${busqueda}”`}{servicio !== "todos" && ` · servicio: ${servicios.find((s) => String(s.id) === servicio)?.nombre ?? servicio}`}{especialidad !== "todos" && ` · especialidad: ${especialidades.find((e) => String(e.id) === especialidad)?.nombre ?? especialidad}`}</div>}
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
-            <thead><tr>{["HC", "Paciente", "Servicio / Especialidad", "Cama", "Ingreso", "Estancia", "Diagnóstico", "Recursos"].map((h) => <th key={h} style={{ border: "1px solid #999", padding: "5px 6px", textAlign: "left", background: "#eee" }}>{h}</th>)}</tr></thead>
-            <tbody>{filtrados.map((p) => <tr key={p.ingresoId} style={{ pageBreakInside: "avoid" }}><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.hc}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.paciente}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.servicio.nombre}<br />{p.especialidad.nombre}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.cama.numero}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{fechaCorta(p.fechaIngreso)}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{diasEstancia(p.fechaIngreso)} días</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.diagnostico.codigo ? `${p.diagnostico.codigo} · ` : ""}{p.diagnostico.descripcion || "—"}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{[p.usaOxigeno ? "O₂" : "", p.usaVentilador ? "VENT" : ""].filter(Boolean).join(" / ") || "—"}</td></tr>)}</tbody>
+            <thead><tr>{["HC", "Paciente", "Servicio / Especialidad", "Cama", "Ingreso", "Estancia", "Diagnóstico", "Soporte respiratorio"].map((h) => <th key={h} style={{ border: "1px solid #999", padding: "5px 6px", textAlign: "left", background: "#eee" }}>{h}</th>)}</tr></thead>
+            <tbody>{filtrados.map((p) => <tr key={p.ingresoId} style={{ pageBreakInside: "avoid" }}><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.hc}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.paciente}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.servicio.nombre}<br />{p.especialidad.nombre}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.cama.numero}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{fechaCorta(p.fechaIngreso)}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{diasEstancia(p.fechaIngreso)} días</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.diagnostico.codigo ? `${p.diagnostico.codigo} · ` : ""}{p.diagnostico.descripcion || "—"}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{[p.usaOxigeno ? "Oxígeno" : "", p.usaVentilador ? "Ventilador" : ""].filter(Boolean).join(" / ") || "Sin soporte"}</td></tr>)}</tbody>
           </table>
           <footer style={{ borderTop: "1px solid #999", marginTop: 12, paddingTop: 7, fontSize: 8, display: "flex", justifyContent: "space-between" }}><span>Total de pacientes hospitalizados: <strong>{filtrados.length}</strong></span><span>Documento generado por el Sistema de Censo Hospitalario</span></footer>
         </section>
