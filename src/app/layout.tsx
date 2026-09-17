@@ -30,6 +30,35 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body>
+        <style>{`
+          @media print {
+            body:has(.reportes-print) .app-shell,
+            body:has(.reportes-print) .app-content,
+            body:has(.reportes-print) .app-main {
+              min-height: 0 !important;
+              height: auto !important;
+            }
+            body:has(.reportes-print) .app-sidebar,
+            body:has(.reportes-print) .app-mobile-header,
+            body:has(.reportes-print) .app-footer {
+              display: none !important;
+            }
+            body:has(.reportes-print) .app-shell {
+              display: block !important;
+            }
+            body:has(.reportes-print) .app-content {
+              width: 100% !important;
+              display: block !important;
+            }
+            body:has(.reportes-print) .app-main {
+              width: 100% !important;
+              max-width: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+          }
+        `}</style>
+
         <div className="app-shell">
           <Sidebar />
 
