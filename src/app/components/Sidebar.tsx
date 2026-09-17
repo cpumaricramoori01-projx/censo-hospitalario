@@ -33,7 +33,7 @@ const grupos: GrupoSidebar[] = [
   },
   {
     titulo: "Reportes",
-    items: [{ label: "Próximamente", href: "#", icono: "▥", disabled: true }],
+    items: [{ label: "Reportes", href: "/reportes", icono: "▥" }],
   },
 ];
 
