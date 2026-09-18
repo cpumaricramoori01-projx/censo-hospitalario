@@ -123,197 +123,9 @@ export default function ReportesPage() {
           </div>
         </section>
 
-        {reporteSeleccionado === "censo" && <><section className="reportes-no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 22 }}>
-          {[
-            ["Pacientes hospitalizados", pacientes.length, "●", "var(--primary)"],
-            ["Resultados filtrados", filtrados.length, "⌕", "var(--secondary)"],
-            ["Servicios", servicios.length, "▦", "#7563a8"],
-            ["Con O₂ / VENT", pacientes.filter((p) => p.usaOxigeno || p.usaVentilador).length, "⚕", "#b66a2c"],
-          ].map(([titulo, valor, icono, color]) => (
-            <article key={String(titulo)} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "13px 15px", boxShadow: "var(--shadow-sm)", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--surface-soft)", color: String(color), display: "grid", placeItems: "center", fontWeight: 900 }}>{icono}</div>
-              <div><div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 700 }}>{titulo}</div><strong style={{ display: "block", fontSize: 21, lineHeight: 1.1, marginTop: 3 }}>{cargando ? "—" : valor}</strong></div>
-            </article>
-          ))}
-        </section>
-
-        </>}
-
-<section className="reportes-no-print" style={{ marginBottom: 24 }}>
-  <div className="section-heading" style={{ marginBottom: 12 }}>
-
-    <div>
-      <h2>Reportes disponibles</h2>
-      <p>
-        Seleccione el tipo de información que desea consultar,
-        filtrar, imprimir o exportar.
-      </p>
-    </div>
-  </div>
-
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(225px, 1fr))",
-      gap: 14,
-    }}
-  >
-    {reportesDisponibles.map((r) => (
-      <button
-        type="button"
-        key={r.titulo}
-        aria-pressed={reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", ""))}
-        style={{
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          minHeight: 154,
-          padding: 15,
-          borderRadius: 14,
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-          textDecoration: "none",
-          color: "inherit",
-          textAlign: "left",
-          cursor: "pointer",
-          overflow: "hidden",
-          borderColor: reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) ? "var(--primary)" : "var(--border)",
-          boxShadow: reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) ? "0 8px 22px rgba(0,0,0,.10)" : "var(--shadow-sm)",
-          transition:
-            "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
-          font: "inherit",
-        }}
-        onClick={() => setReporteSeleccionado(r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", ""))}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-4px)";
-          e.currentTarget.style.boxShadow =
-            "0 10px 25px rgba(0,0,0,.10)";
-          e.currentTarget.style.borderColor = "var(--primary)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-          e.currentTarget.style.borderColor = "var(--border)";
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 4,
-            background:
-              r.color === "blue"
-                ? "#2563eb"
-                : r.color === "green"
-                ? "#16834b"
-                : r.color === "orange"
-                ? "#d97706"
-                : r.color === "purple"
-                ? "#7c3aed"
-                : "#c2410c",
-          }}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 10,
-          }}
-        >
-          <div
-            className={`dashboard-card-icon ${r.color}`}
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              fontSize: 21,
-              flexShrink: 0,
-            }}
-          >
-            {r.icono}
-          </div>
-
-          <span
-            style={{
-              fontSize: 8,
-              fontWeight: 900,
-              letterSpacing: ".05em",
-              color: "var(--primary)",
-              background: "var(--primary-light)",
-              padding: "5px 8px",
-              borderRadius: 999,
-            }}
-          >
-            DISPONIBLE
-          </span>
-        </div>
-
-        <div style={{ marginTop: 14 }}>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: 15,
-              lineHeight: 1.2,
-              fontWeight: 800,
-            }}
-          >
-            {r.titulo}
-          </h3>
-
-          <p
-            style={{
-              margin: "5px 0 0",
-              fontSize: 10.5,
-              lineHeight: 1.5,
-              color: "var(--muted)",
-            }}
-          >
-            {r.descripcion}
-          </p>
-        </div>
-
-        <div
-          style={{
-            marginTop: "auto",
-            paddingTop: 13,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderTop: "1px solid var(--border)",
-          }}
-        >
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 800,
-              color: "var(--muted)",
-            }}
-          >
-            REPORTE HOSPITALARIO
-          </span>
-
-          <span
-            style={{
-              fontSize: 10.5,
-              fontWeight: 900,
-              color: "var(--primary)",
-            }}
-          >
-            {reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) ? "Seleccionado ✓" : "Ver reporte →"}
-          </span>
-        </div>
-      </button>
-    ))}
-  </div>
-</section>
-
-
-{reporteSeleccionado === "censo" && <><section className="reportes-no-print" style={{ marginBottom: 18 }}>
-          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Censo actual</h2><p>Pacientes que actualmente no tienen un egreso registrado.</p></div></div>
+        {reporteSeleccionado === "censo" && <>
+        <section className="reportes-no-print" style={{ marginBottom: 18 }}>
+          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Filtros de consulta</h2><p>Filtre la información del censo antes de revisar los indicadores y el detalle.</p></div></div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1.5fr) repeat(2, minmax(180px, 1fr)) auto", gap: 10, alignItems: "end", padding: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-sm)" }}>
             <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>BUSCAR PACIENTE / HC / DIAGNÓSTICO<input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Escriba para buscar..." style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} /></label>
             <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>SERVICIO<select value={servicio} onChange={(e) => { setServicio(e.target.value); setEspecialidad("todos"); }} style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11, background: "#fff" }}><option value="todos">Todos los servicios</option>{servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
@@ -324,38 +136,49 @@ export default function ReportesPage() {
 
         {error && <section role="alert" className="reportes-no-print" style={{ marginBottom: 18, padding: "12px 15px", background: "var(--danger-light)", border: "1px solid #ecc7c4", borderRadius: 10, color: "var(--danger)", fontSize: 12 }}>{error}</section>}
 
+        <section className="reportes-no-print" style={{ marginBottom: 22 }}>
+          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Indicadores</h2><p>Resumen del estado actual de los pacientes hospitalizados.</p></div></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10 }}>
+            {[
+              ["Pacientes", filtrados.length, "▤", "var(--primary)"],
+              ["Servicios", new Set(filtrados.map((p) => p.servicio.id)).size, "▦", "#7563a8"],
+              ["Especialidades", new Set(filtrados.map((p) => p.especialidad.id)).size, "⌘", "#16834b"],
+              ["Estancia promedio", filtrados.length ? (filtrados.reduce((s, p) => s + diasEstancia(p.fechaIngreso), 0) / filtrados.length).toFixed(1) : "0.0", "◷", "#b66a2c"],
+              ["Estancia ≥ 15 días", filtrados.filter((p) => diasEstancia(p.fechaIngreso) >= 15).length, "!", "#b33f3f"],
+            ].map(([titulo, valor, icono, color]) => <article key={String(titulo)} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "13px 14px", boxShadow: "var(--shadow-sm)", display: "flex", alignItems: "center", gap: 10 }}><div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--surface-soft)", color: String(color), display: "grid", placeItems: "center", fontWeight: 900, flexShrink: 0 }}>{icono}</div><div><div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 800 }}>{titulo}</div><strong style={{ display: "block", fontSize: 21, lineHeight: 1.1, marginTop: 3 }}>{cargando ? "—" : valor}</strong></div></article>)}
+          </div>
+        </section>
+
+        <section className="reportes-no-print" style={{ marginBottom: 22 }}>
+          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Análisis visual</h2><p>Distribución de pacientes según servicio y soporte respiratorio.</p></div></div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(320px, 1fr)", gap: 14 }}>
+            <article style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, boxShadow: "var(--shadow-sm)" }}>
+              <h3 style={{ margin: 0, fontSize: 13 }}>Pacientes por servicio</h3>
+              <p style={{ margin: "4px 0 14px", fontSize: 10, color: "var(--muted)" }}>Distribución del censo actualmente filtrado.</p>
+              {Array.from(new Map(filtrados.map((p) => [p.servicio.id, p.servicio.nombre])).entries()).map(([id, nombre]) => {
+                const cantidad = filtrados.filter((p) => p.servicio.id === id).length;
+                const maximo = Math.max(1, ...Array.from(new Set(filtrados.map((p) => p.servicio.id))).map((sid) => filtrados.filter((p) => p.servicio.id === sid).length));
+                return <div key={id} style={{ marginBottom: 11 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, marginBottom: 4 }}><span>{nombre}</span><span>{cantidad}</span></div><div style={{ height: 9, background: "var(--surface-soft)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${(cantidad / maximo) * 100}%`, background: "var(--primary)", borderRadius: 999 }} /></div></div>;
+              })}
+              {filtrados.length === 0 && <p style={{ color: "var(--muted)", fontSize: 11 }}>No hay datos para mostrar.</p>}
+            </article>
+            <article style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, boxShadow: "var(--shadow-sm)" }}>
+              <h3 style={{ margin: 0, fontSize: 13 }}>Soporte respiratorio</h3>
+              <p style={{ margin: "4px 0 16px", fontSize: 10, color: "var(--muted)" }}>Pacientes según soporte registrado.</p>
+              {(() => { const sin = filtrados.filter((p) => !p.usaOxigeno && !p.usaVentilador).length; const ox = filtrados.filter((p) => p.usaOxigeno && !p.usaVentilador).length; const vent = filtrados.filter((p) => p.usaVentilador).length; const total = Math.max(1, filtrados.length); return [["Sin soporte", sin, "#7b8794"], ["Oxígeno", ox, "var(--primary)"], ["Ventilador", vent, "#b33f3f"]].map(([nombre, cantidad, color]) => <div key={String(nombre)} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 13 }}><span style={{ width: 10, height: 10, borderRadius: 999, background: String(color), flexShrink: 0 }} /><div style={{ flex: 1 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontWeight: 700, marginBottom: 4 }}><span>{nombre}</span><span>{cantidad}</span></div><div style={{ height: 8, background: "var(--surface-soft)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${(Number(cantidad) / total) * 100}%`, background: String(color), borderRadius: 999 }} /></div></div></div>); })()}
+            </article>
+          </div>
+        </section>
+
         <section className="reportes-no-print" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
           <div style={{ padding: "13px 15px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div><h2 style={{ margin: 0, fontSize: 15 }}>Hospitalización actual</h2><p style={{ margin: "3px 0 0", color: "var(--muted)", fontSize: 10 }}>Resultado: {cargando ? "consultando..." : `${filtrados.length} paciente${filtrados.length === 1 ? "" : "s"}`}</p></div>
-            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => window.print()} style={{ border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>🖨 Imprimir / PDF</button>
-              <button type="button" onClick={exportarExcel} disabled={cargando || filtrados.length === 0} style={{ border: "1px solid #4f7b58", background: "#fff", color: "#38633f", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer", opacity: cargando || filtrados.length === 0 ? .5 : 1 }}>📊 Excel</button>
-            </div>
+            <div><h2 style={{ margin: 0, fontSize: 15 }}>Detalle del reporte</h2><p style={{ margin: "3px 0 0", color: "var(--muted)", fontSize: 10 }}>Hospitalización actual · {cargando ? "consultando..." : `${filtrados.length} paciente${filtrados.length === 1 ? "" : "s"}`}</p></div>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}><button type="button" onClick={() => window.print()} style={{ border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>🖨 Imprimir / PDF</button><button type="button" onClick={exportarExcel} disabled={cargando || filtrados.length === 0} style={{ border: "1px solid #4f7b58", background: "#fff", color: "#38633f", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer", opacity: cargando || filtrados.length === 0 ? .5 : 1 }}>📊 Excel</button></div>
           </div>
           {cargando ? <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>Cargando pacientes hospitalizados...</div> : filtrados.length === 0 ? <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>No hay pacientes que coincidan con los filtros seleccionados.</div> : <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}><thead><tr style={{ background: "#f8fafb" }}>{["Paciente / HC", "Servicio / Especialidad", "Cama", "Ingreso", "Estancia", "Diagnóstico", "Soporte respiratorio"].map((h) => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "var(--muted)", fontSize: 8.5, textTransform: "uppercase", letterSpacing: ".06em", whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead><tbody>{filtrados.map((p) => <tr key={p.ingresoId} style={{ borderTop: "1px solid #edf1f3" }}><td style={{ padding: "8px 10px", minWidth: 170 }}><strong style={{ display: "block", fontSize: 11 }}>{p.paciente}</strong><span style={{ color: "var(--muted)", fontSize: 9 }}>HC {p.hc}</span></td><td style={{ padding: "8px 10px", minWidth: 155 }}><strong style={{ fontSize: 10.5 }}>{p.servicio.nombre}</strong><span style={{ display: "block", marginTop: 2, color: "var(--muted)", fontSize: 9 }}>{p.especialidad.nombre}</span></td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Cama {p.cama.numero}</td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{fechaCorta(p.fechaIngreso)}</td><td style={{ padding: "8px 10px", whiteSpace: "nowrap", fontWeight: 800 }}>{diasEstancia(p.fechaIngreso)} d.</td><td style={{ padding: "8px 10px", minWidth: 200, maxWidth: 280 }}>{p.diagnostico.codigo && <strong>{p.diagnostico.codigo} · </strong>}<span style={{ color: "var(--muted)" }}>{p.diagnostico.descripcion || "—"}</span></td><td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{p.usaOxigeno && <span style={{ marginRight: 4, padding: "3px 6px", borderRadius: 999, background: "var(--primary-light)", color: "var(--primary-dark)", fontSize: 8.5, fontWeight: 800 }}>Oxígeno</span>}{p.usaVentilador && <span style={{ padding: "3px 6px", borderRadius: 999, background: "var(--secondary-light)", color: "var(--secondary)", fontSize: 8.5, fontWeight: 800 }}>Ventilador</span>}{!p.usaOxigeno && !p.usaVentilador && "Sin soporte"}</td></tr>)}</tbody></table></div>}
         </section>
 
-        <section className="reportes-print">
-          <header style={{ borderBottom: "2px solid #222", paddingBottom: 10, marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700 }}>HOSPITAL REGIONAL ELEAZAR GUZMÁN BARRÓN</div>
-            <div style={{ fontSize: 9, marginTop: 3 }}>Sistema de Censo Hospitalario</div>
-            <h1 style={{ fontSize: 17, margin: "14px 0 5px", textAlign: "center" }}>REPORTE DE CENSO HOSPITALARIO</h1>
-            <div style={{ fontSize: 9, textAlign: "center" }}>Censo actual de pacientes hospitalizados</div>
-          </header>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, fontSize: 9 }}>
-            <span><strong>Fecha de generación:</strong> {new Date().toLocaleString("es-PE")}</span>
-            <span><strong>Total de pacientes:</strong> {filtrados.length}</span>
-          </div>
-          {(busqueda || servicio !== "todos" || especialidad !== "todos") && <div style={{ marginBottom: 10, padding: 7, border: "1px solid #bbb", fontSize: 8 }}><strong>Filtros aplicados:</strong>{busqueda && ` búsqueda “${busqueda}”`}{servicio !== "todos" && ` · servicio: ${servicios.find((s) => String(s.id) === servicio)?.nombre ?? servicio}`}{especialidad !== "todos" && ` · especialidad: ${especialidades.find((e) => String(e.id) === especialidad)?.nombre ?? especialidad}`}</div>}
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 9 }}>
-            <thead><tr>{["HC", "Paciente", "Servicio / Especialidad", "Cama", "Ingreso", "Estancia", "Diagnóstico", "Soporte respiratorio"].map((h) => <th key={h} style={{ border: "1px solid #999", padding: "5px 6px", textAlign: "left", background: "#eee" }}>{h}</th>)}</tr></thead>
-            <tbody>{filtrados.map((p) => <tr key={p.ingresoId} style={{ pageBreakInside: "avoid" }}><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.hc}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.paciente}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.servicio.nombre}<br />{p.especialidad.nombre}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.cama.numero}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{fechaCorta(p.fechaIngreso)}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{diasEstancia(p.fechaIngreso)} días</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{p.diagnostico.codigo ? `${p.diagnostico.codigo} · ` : ""}{p.diagnostico.descripcion || "—"}</td><td style={{ border: "1px solid #999", padding: "5px 6px" }}>{[p.usaOxigeno ? "Oxígeno" : "", p.usaVentilador ? "Ventilador" : ""].filter(Boolean).join(" / ") || "Sin soporte"}</td></tr>)}</tbody>
-          </table>
-          <footer style={{ borderTop: "1px solid #999", marginTop: 12, paddingTop: 7, fontSize: 8, display: "flex", justifyContent: "space-between" }}><span>Total de pacientes hospitalizados: <strong>{filtrados.length}</strong></span><span>Documento generado por el Sistema de Censo Hospitalario</span></footer>
-        </section>
-      </>}
-
-      {reporteSeleccionado === "ingresos" && <IngresosReportPage />}
+        <section className="reportes-print">      {reporteSeleccionado === "ingresos" && <IngresosReportPage />}
       {reporteSeleccionado === "egresos" && <EgresosReportPage />}
       {reporteSeleccionado === "ocupacion" && <OcupacionReportPage />}
       {reporteSeleccionado === "estancia" && <EstanciaReportPage />}
