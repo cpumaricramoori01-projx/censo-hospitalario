@@ -126,24 +126,172 @@ export default function ReportesPage() {
           ))}
         </section>
 
-        <section className="reportes-no-print" style={{ marginBottom: 22 }}>
-          <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Reportes disponibles</h2><p>Seleccione un reporte para consultar su información, aplicar filtros y generar la salida correspondiente.</p></div></div>
-          <div className="dashboard-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-            {reportesDisponibles.map((r) => (
-              <Link key={r.titulo} href={r.href} className="dashboard-card" style={{ padding: 15, border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", textDecoration: "none", color: "inherit" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-                  <div className={`dashboard-card-icon ${r.color}`} style={{ width: 38, height: 38, fontSize: 16 }}>{r.icono}</div>
-                  <span style={{ fontSize: 8, fontWeight: 900, color: "var(--primary)", background: "var(--primary-light)", padding: "4px 7px", borderRadius: 999 }}>DISPONIBLE</span>
-                </div>
-                <h2 style={{ marginTop: 11, fontSize: 14 }}>{r.titulo}</h2>
-                <p style={{ marginTop: 5, lineHeight: 1.4 }}>{r.descripcion}</p>
-                <span style={{ display: "inline-block", marginTop: 10, color: "var(--primary)", fontSize: 10, fontWeight: 800 }}>Abrir reporte →</span>
-              </Link>
-            ))}
-          </div>
-        </section>
+        <section className="reportes-no-print" style={{ marginBottom: 26 }}>
+  <div className="section-heading" style={{ marginBottom: 14 }}>
+    <div>
+      <h2>Reportes disponibles</h2>
+      <p>
+        Seleccione el tipo de información que desea consultar,
+        filtrar, imprimir o exportar.
+      </p>
+    </div>
+  </div>
 
-        <section className="reportes-no-print" style={{ marginBottom: 18 }}>
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(225px, 1fr))",
+      gap: 14,
+    }}
+  >
+    {reportesDisponibles.map((r) => (
+      <Link
+        key={r.titulo}
+        href={r.href}
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 185,
+          padding: 18,
+          borderRadius: 14,
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+          boxShadow: "var(--shadow-sm)",
+          textDecoration: "none",
+          color: "inherit",
+          overflow: "hidden",
+          transition:
+            "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow =
+            "0 10px 25px rgba(0,0,0,.10)";
+          e.currentTarget.style.borderColor = "var(--primary)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "var(--shadow-sm)";
+          e.currentTarget.style.borderColor = "var(--border)";
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            background:
+              r.color === "blue"
+                ? "#2563eb"
+                : r.color === "green"
+                ? "#16834b"
+                : r.color === "orange"
+                ? "#d97706"
+                : r.color === "purple"
+                ? "#7c3aed"
+                : "#c2410c",
+          }}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 10,
+          }}
+        >
+          <div
+            className={`dashboard-card-icon ${r.color}`}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              fontSize: 21,
+              flexShrink: 0,
+            }}
+          >
+            {r.icono}
+          </div>
+
+          <span
+            style={{
+              fontSize: 8,
+              fontWeight: 900,
+              letterSpacing: ".05em",
+              color: "var(--primary)",
+              background: "var(--primary-light)",
+              padding: "5px 8px",
+              borderRadius: 999,
+            }}
+          >
+            DISPONIBLE
+          </span>
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 16,
+              lineHeight: 1.2,
+              fontWeight: 800,
+            }}
+          >
+            {r.titulo}
+          </h3>
+
+          <p
+            style={{
+              margin: "7px 0 0",
+              fontSize: 10.5,
+              lineHeight: 1.5,
+              color: "var(--muted)",
+            }}
+          >
+            {r.descripcion}
+          </p>
+        </div>
+
+        <div
+          style={{
+            marginTop: "auto",
+            paddingTop: 13,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 800,
+              color: "var(--muted)",
+            }}
+          >
+            REPORTE HOSPITALARIO
+          </span>
+
+          <span
+            style={{
+              fontSize: 10.5,
+              fontWeight: 900,
+              color: "var(--primary)",
+            }}
+          >
+            Ver reporte →
+          </span>
+        </div>
+      </Link>
+    ))}
+  </div>
+</section>
+
+<section className="reportes-no-print" style={{ marginBottom: 18 }}>
           <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Censo actual</h2><p>Pacientes que actualmente no tienen un egreso registrado.</p></div></div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1.5fr) repeat(2, minmax(180px, 1fr)) auto", gap: 10, alignItems: "end", padding: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-sm)" }}>
             <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>BUSCAR PACIENTE / HC / DIAGNÓSTICO<input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Escriba para buscar..." style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} /></label>
