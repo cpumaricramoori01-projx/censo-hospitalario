@@ -163,7 +163,6 @@ export default function ReportesPage() {
           borderRadius: 14,
           border: "1px solid var(--border)",
           background: "var(--surface)",
-          boxShadow: "var(--shadow-sm)",
           textDecoration: "none",
           color: "inherit",
           textAlign: "left",
