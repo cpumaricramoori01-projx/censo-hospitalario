@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import IngresosReportPage from "./ingresos/page";
+import EgresosReportPage from "./egresos/page";
+import OcupacionReportPage from "./ocupacion/page";
+import EstanciaReportPage from "./estancia/page";
 
 type Paciente = {
   ingresoId: number;
@@ -43,6 +47,7 @@ export default function ReportesPage() {
   const [servicio, setServicio] = useState("todos");
   const [especialidad, setEspecialidad] = useState("todos");
   const [busqueda, setBusqueda] = useState("");
+  const [reporteSeleccionado, setReporteSeleccionado] = useState("censo");
 
   useEffect(() => {
     fetch("/api/censo/pacientes", { cache: "no-store" })
@@ -112,7 +117,7 @@ export default function ReportesPage() {
           </div>
         </section>
 
-        <section className="reportes-no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 22 }}>
+        {reporteSeleccionado === "censo" && <><section className="reportes-no-print" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 22 }}>
           {[
             ["Pacientes hospitalizados", pacientes.length, "●", "var(--primary)"],
             ["Resultados filtrados", filtrados.length, "⌕", "var(--secondary)"],
@@ -145,9 +150,10 @@ export default function ReportesPage() {
     }}
   >
     {reportesDisponibles.map((r) => (
-      <Link
+      <button
+        type="button"
         key={r.titulo}
-        href={r.href}
+        aria-pressed={reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", ""))}
         style={{
           position: "relative",
           display: "flex",
@@ -160,10 +166,16 @@ export default function ReportesPage() {
           boxShadow: "var(--shadow-sm)",
           textDecoration: "none",
           color: "inherit",
+          textAlign: "left",
+          cursor: "pointer",
           overflow: "hidden",
+          borderColor: reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) ? "var(--primary)" : "var(--border)",
+          boxShadow: reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) ? "0 8px 22px rgba(0,0,0,.10)" : "var(--shadow-sm)",
           transition:
             "transform .18s ease, box-shadow .18s ease, border-color .18s ease",
+          font: "inherit",
         }}
+        onClick={() => setReporteSeleccionado(r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", ""))}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = "translateY(-4px)";
           e.currentTarget.style.boxShadow =
@@ -286,7 +298,7 @@ export default function ReportesPage() {
             Ver reporte →
           </span>
         </div>
-      </Link>
+      </button>
     ))}
   </div>
 </section>
@@ -332,6 +344,12 @@ export default function ReportesPage() {
           </table>
           <footer style={{ borderTop: "1px solid #999", marginTop: 12, paddingTop: 7, fontSize: 8, display: "flex", justifyContent: "space-between" }}><span>Total de pacientes hospitalizados: <strong>{filtrados.length}</strong></span><span>Documento generado por el Sistema de Censo Hospitalario</span></footer>
         </section>
+      </>}
+
+      {reporteSeleccionado === "ingresos" && <IngresosReportPage />}
+      {reporteSeleccionado === "egresos" && <EgresosReportPage />}
+      {reporteSeleccionado === "ocupacion" && <OcupacionReportPage />}
+      {reporteSeleccionado === "estancia" && <EstanciaReportPage />}
       </div>
     </>
   );
