@@ -111,7 +111,13 @@ export default function ReportesPage() {
             <div>
               <p className="page-kicker">Información hospitalaria</p>
               <h1 id="page-title">Centro de reportes</h1>
-              <p>Consulta, filtra, imprime y exporta información del sistema.</p>
+              <p>Consulta, filtra, analiza, imprime y exporta información del sistema.</p>
+              <div className="reportes-contexto" style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10, color: "var(--muted)" }}>
+                <span style={{ fontWeight: 800, color: "var(--primary-dark)" }}>Reportes</span>
+                <span>›</span>
+                <span>{reportesDisponibles.find((r) => (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) === reporteSeleccionado)?.titulo ?? "Censo actual"}</span>
+                <span style={{ padding: "4px 8px", borderRadius: 999, background: "var(--surface-soft)", border: "1px solid var(--border)", fontWeight: 700 }}>Consulta hospitalaria</span>
+              </div>
             </div>
             <Link href="/panel" style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--primary-dark)", borderRadius: 9, padding: "9px 13px", fontSize: 12, fontWeight: 700, textDecoration: "none", boxShadow: "var(--shadow-sm)", whiteSpace: "nowrap" }}>← Panel principal</Link>
           </div>
@@ -133,8 +139,9 @@ export default function ReportesPage() {
 
         </>}
 
-<section className="reportes-no-print" style={{ marginBottom: 26 }}>
-  <div className="section-heading" style={{ marginBottom: 14 }}>
+<section className="reportes-no-print" style={{ marginBottom: 24 }}>
+  <div className="section-heading" style={{ marginBottom: 12 }}>
+
     <div>
       <h2>Reportes disponibles</h2>
       <p>
@@ -160,8 +167,8 @@ export default function ReportesPage() {
           position: "relative",
           display: "flex",
           flexDirection: "column",
-          minHeight: 185,
-          padding: 18,
+          minHeight: 154,
+          padding: 15,
           borderRadius: 14,
           border: "1px solid var(--border)",
           background: "var(--surface)",
@@ -220,8 +227,8 @@ export default function ReportesPage() {
           <div
             className={`dashboard-card-icon ${r.color}`}
             style={{
-              width: 48,
-              height: 48,
+              width: 42,
+              height: 42,
               borderRadius: 12,
               fontSize: 21,
               flexShrink: 0,
@@ -249,7 +256,7 @@ export default function ReportesPage() {
           <h3
             style={{
               margin: 0,
-              fontSize: 16,
+              fontSize: 15,
               lineHeight: 1.2,
               fontWeight: 800,
             }}
@@ -259,7 +266,7 @@ export default function ReportesPage() {
 
           <p
             style={{
-              margin: "7px 0 0",
+              margin: "5px 0 0",
               fontSize: 10.5,
               lineHeight: 1.5,
               color: "var(--muted)",
@@ -296,7 +303,7 @@ export default function ReportesPage() {
               color: "var(--primary)",
             }}
           >
-            Ver reporte →
+            {reporteSeleccionado === (r.href === "/reportes" ? "censo" : r.href.replace("/reportes/", "")) ? "Seleccionado ✓" : "Ver reporte →"}
           </span>
         </div>
       </button>
