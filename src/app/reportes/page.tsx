@@ -131,7 +131,9 @@ export default function ReportesPage() {
           ))}
         </section>
 
-        <section className="reportes-no-print" style={{ marginBottom: 26 }}>
+        </>}
+
+<section className="reportes-no-print" style={{ marginBottom: 26 }}>
   <div className="section-heading" style={{ marginBottom: 14 }}>
     <div>
       <h2>Reportes disponibles</h2>
@@ -302,7 +304,8 @@ export default function ReportesPage() {
   </div>
 </section>
 
-<section className="reportes-no-print" style={{ marginBottom: 18 }}>
+
+{reporteSeleccionado === "censo" && <><section className="reportes-no-print" style={{ marginBottom: 18 }}>
           <div className="section-heading" style={{ marginBottom: 12 }}><div><h2>Censo actual</h2><p>Pacientes que actualmente no tienen un egreso registrado.</p></div></div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1.5fr) repeat(2, minmax(180px, 1fr)) auto", gap: 10, alignItems: "end", padding: 14, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-sm)" }}>
             <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>BUSCAR PACIENTE / HC / DIAGNÓSTICO<input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Escriba para buscar..." style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} /></label>
