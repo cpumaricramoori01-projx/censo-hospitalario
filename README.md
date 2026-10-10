@@ -14,7 +14,7 @@ Sistema de gestión de hospitalizaciones del **Hospital Regional Eleazar Guzmán
 
 ## Preparación
 
-Requiere Node 24 y MySQL 8. Instala con `npm ci`. Copia `.env.example` a `.env.local` y configura la conexión. SSL valida el certificado; añade `DATABASE_CA` si el proveedor necesita una CA propia. `DATABASE_SSL=false` se reserva para MySQL local.
+Requiere Node 24 y MySQL 8. Instala con `npm ci`. Configura `DATABASE_URL`, `DATABASE_SSL`, `DATABASE_CA` y `SESSION_SECRET` como secretos protegidos de Vercel y del repositorio en Codespaces. No se necesitan archivos `.env` con credenciales; los scripts admiten variables del entorno. `.env.example` documenta los nombres con valores ficticios. SSL valida el certificado; añade `DATABASE_CA` si el proveedor necesita una CA propia. `DATABASE_SSL=false` se reserva para MySQL local.
 
 Genera `SESSION_SECRET` con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. No compartas ni subas este valor.
 
@@ -26,11 +26,9 @@ printf '%s' "$HEGB_PASSWORD" | npm run auth:hash --silent
 unset HEGB_PASSWORD
 ```
 
-Configura `AUTH_USERS` como una lista JSON en `.env.local` (o una variable protegida del hosting):
+Las cuentas se almacenan en la tabla `usuarios`. Para crear el primer administrador, entrega por entrada estándar una lista JSON con `usuario`, `nombre`, `rol` y `passwordHash` a `npm run auth:install -- --stdin`. Usa el hash generado anteriormente; nunca almacenes contraseñas en texto plano. Este comando importa cuentas sin reemplazar sus hashes existentes y registra la migración 0005.
 
-```text
-AUTH_USERS='[{"usuario":"nombre.apellido","nombre":"Nombre del personal","rol":"administrador","passwordHash":"HASH_GENERADO"}]'
-```
+Después, un administrador puede crear cuentas, cambiar contraseña y rol, y desactivar usuarios desde **Usuarios**. No se permite desactivar ni quitar el rol al último administrador activo.
 
 Cada persona debe tener su propia cuenta. Roles:
 
@@ -40,13 +38,13 @@ Cada persona debe tener su propia cuenta. Roles:
 | operador      | Consulta, ingresos, actualización de estancia, traslados y egresos |
 | consulta      | Censo, fichas y reportes                                           |
 
-Sin cuentas y secreto válidos, el sistema no habilita el acceso. Sesiones firmadas de ocho horas, cookies HttpOnly y SameSite, control de origen en escrituras y límite compartido de cinco intentos por usuario cada quince minutos. Retirar una cuenta, cambiar su hash/rol o rotar el secreto invalida sus sesiones. La gestión inicial de cuentas se hace en las variables protegidas; no hay registro público de usuarios.
+Sin cuentas y secreto válidos, el sistema no habilita el acceso. Sesiones firmadas de ocho horas, cookies HttpOnly y SameSite, control de origen en escrituras y límite compartido de cinco intentos por usuario cada quince minutos. Retirar una cuenta, cambiar su hash/rol o rotar el secreto invalida sus sesiones. Las cuentas se administran en la base de datos; no hay registro público de usuarios.
 
 ## Actualización de una base existente
 
 **No ejecutar la migración sobre producción sin probar primero una copia respaldada.** MySQL hace commits implícitos en DDL: una migración fallida requiere restauración, no se revierte automáticamente. Detén escrituras durante el proceso.
 
-1. Haz respaldo y restaura una copia aislada; apunta `.env.local` a esa copia.
+1. Haz respaldo y restaura una copia aislada; configura las variables del entorno para esa copia.
 2. Comprueba si las fechas antiguas eran UTC o locales. Configura `LEGACY_TIME_ZONE=UTC` o `LEGACY_TIME_ZONE=America/Lima`; la segunda opción convierte las fechas existentes a UTC. El script se niega a adivinar.
 3. Ejecuta `npm run db:check`. Revisa y resuelve duplicados, estancias solapadas, referencias inválidas o egresos anteriores al ingreso. El script no corrige ni borra pacientes.
 4. Ejecuta `npm run db:upgrade`. Admite las tablas de médicos/diagnósticos y la columna `medico_id` creadas manualmente en la versión anterior. Registra la actualización en el historial de Drizzle.
@@ -54,7 +52,7 @@ Sin cuentas y secreto válidos, el sistema no habilita el acceso. Sesiones firma
 
 Las ubicaciones antiguas se reconstruyen desde la cama y estructura disponibles, se marcan `legacy` y **no recuperan movimientos que nunca se registraron**. Antes de migrar, comprueba el historial con los registros del hospital. Una migración parcial debe restaurarse desde el respaldo antes de repetirla.
 
-Para una base nueva vacía, `npm run db:migrate` aplica la secuencia completa. `src/db/schema.ts` es la única fuente del esquema; las migraciones generadas están en `drizzle/`.
+Tras actualizar una base existente, ejecuta `npm run auth:install -- --stdin` con el administrador inicial. Para una base nueva vacía, `npm run db:migrate` aplica la secuencia completa; después importa el administrador con el mismo comando. `src/db/schema.ts` es la única fuente del esquema; las migraciones generadas están en `drizzle/`.
 
 ## Validación y desarrollo
 
@@ -69,7 +67,7 @@ npm run dev
 La integración se prueba únicamente en MySQL temporal `127.0.0.1:33306/censo_test`, nunca en producción:
 
 1. Crea un MySQL vacío y configura `.env.local` con las cuentas ficticias `admin.test`, `operador.test`, `consulta.test`, contraseña `local-test-password-123`, secreto de prueba y `LEGACY_TIME_ZONE=UTC`.
-2. Ejecuta `node --env-file=.env.local tests/prepare-db.mjs` y `npm run db:upgrade`.
+2. Ejecuta `node --env-file=.env.local tests/prepare-db.mjs` y `npm run db:upgrade`, luego `npm run auth:install` para importar las tres cuentas de prueba.
 3. Inicia la aplicación en el puerto 3100: `npm run start -- -p 3100` después de compilar.
 4. Ejecuta `npm run test:integration`. Verifica permisos, origen, concurrencia, rollback, traslados, egresos, reportes históricos y límite de intentos. La base de prueba queda con datos ficticios; debe recrearse para repetir la suite.
 
@@ -77,7 +75,7 @@ Los scripts de prueba verifican host, puerto y nombre de base antes de operar. `
 
 ## Credenciales del repositorio anterior
 
-`.env` se retira del seguimiento, conservando la copia local. Si tuvo credenciales válidas, **reemplázalas en el proveedor y en el hosting**, porque retirarlo del commit actual no las elimina del historial público. No se ha reescrito el historial ni cambiado credenciales de servicios externos.
+Las credenciales se mantienen en secretos protegidos del hosting y Codespaces, fuera de los archivos `.env` del proyecto. Si tuvo credenciales válidas, **reemplázalas en el proveedor y en el hosting**, porque retirarlo del commit actual no las elimina del historial público. No se ha reescrito el historial ni cambiado credenciales de servicios externos.
 
 ## Identidad visual
 

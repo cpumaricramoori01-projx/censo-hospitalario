@@ -1,14 +1,15 @@
 import { cookies, headers } from "next/headers";
-import { COOKIE, readSession, type Role } from "./session";
+import { COOKIE, type Role } from "./session";
+import { sessionAccount } from "./accounts";
 import { HttpError } from "./validation";
 export async function requireUser(
   roles: Role[] = ["administrador", "operador", "consulta"],
 ) {
-  const account = readSession((await cookies()).get(COOKIE)?.value);
+  const account = await sessionAccount((await cookies()).get(COOKIE)?.value);
   if (!account) throw new HttpError("Inicia sesión para continuar", 401);
   if (!roles.includes(account.rol))
     throw new HttpError("Tu cuenta no tiene permiso para esta operación", 403);
-  return { usuario: account.usuario, nombre: account.nombre, rol: account.rol };
+  return { id: account.id, usuario: account.usuario, nombre: account.nombre, rol: account.rol };
 }
 export async function sameOrigin() {
   const h = await headers();

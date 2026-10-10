@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  accounts,
+  sessionSecret,
+  hashPassword,
   COOKIE,
   signSession,
   verifyPassword,
@@ -12,12 +13,13 @@ import {
 } from "@/lib/session";
 import { sameOrigin } from "@/lib/auth";
 import { fallo, HttpError, texto } from "@/lib/validation";
+import { findAccount } from "@/lib/accounts";
+const dummyHash = hashPassword("dummy-account-not-a-valid-login");
 export async function POST(request: Request) {
   try {
     await sameOrigin();
-    let users;
     try {
-      users = accounts();
+      sessionSecret();
     } catch {
       return NextResponse.json(
         {
@@ -28,7 +30,7 @@ export async function POST(request: Request) {
       );
     }
     const b = await jsonObject(request);
-    const usuario = texto(b.usuario, "Usuario", 64);
+    const usuario = texto(b.usuario, "Usuario", 64).toLowerCase();
     const password = b.password;
     if (
       typeof password !== "string" ||
@@ -54,11 +56,11 @@ export async function POST(request: Request) {
         "Demasiados intentos. Vuelve a intentarlo en quince minutos.",
         429,
       );
-    const account = users.find((a) => a.usuario === usuario);
+    const account = await findAccount(usuario);
     // Coste de verificación equivalente para usuarios desconocidos.
     const valid = verifyPassword(
       password,
-      account?.passwordHash ?? users[0].passwordHash,
+      account?.passwordHash ?? dummyHash,
     );
     if (!account || !valid)
       throw new HttpError("Usuario o contraseña incorrectos", 401);

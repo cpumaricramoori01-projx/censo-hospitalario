@@ -85,6 +85,54 @@ try {
   const operator = await login("operador.test");
   const admin = await login("admin.test");
   const reader = await login("consulta.test");
+  let accounts = await request("/api/usuarios", { cookie: admin });
+  check(accounts.status === 200 && accounts.data.length === 3, "Las cuentas iniciales se consultan desde MySQL");
+  check(accounts.data.every(u => !("passwordHash" in u) && !("password_hash" in u)), "La API de usuarios no revela hashes");
+  for (const cookie of [reader, operator]) {
+    const denied = await request("/api/usuarios", { cookie });
+    check(denied.status === 403, "Solo administradores consultan las cuentas");
+  }
+  const adminAccount = accounts.data.find(u => u.usuario === "admin.test");
+  let lastAdmin = await request("/api/usuarios", { method: "PATCH", cookie: admin, body: { ...adminAccount, activo: false } });
+  check(lastAdmin.status === 409, "No se desactiva al último administrador");
+  lastAdmin = await request("/api/usuarios", { method: "PATCH", cookie: admin, body: { ...adminAccount, rol: "consulta" } });
+  check(lastAdmin.status === 409, "No se retira el rol al último administrador");
+  const newAccount = { usuario: "gestion.test", nombre: "Gestión de prueba", rol: "consulta", activo: true, password: "local-test-password-123" };
+  let created = await request("/api/usuarios", { method: "POST", cookie: operator, body: newAccount });
+  check(created.status === 403, "Operadores no crean cuentas");
+  created = await request("/api/usuarios", { method: "POST", cookie: admin, body: newAccount, origin: false });
+  check(created.status === 403, "Crear usuarios exige origen válido");
+  created = await request("/api/usuarios", { method: "POST", cookie: admin, body: { ...newAccount, password: "corta" } });
+  check(created.status === 400, "No se aceptan contraseñas cortas");
+  created = await request("/api/usuarios", { method: "POST", cookie: admin, body: newAccount });
+  check(created.status === 201, "Administrador crea una cuenta en BD");
+  const accountId = created.data.id;
+  const duplicate = await request("/api/usuarios", { method: "POST", cookie: admin, body: newAccount });
+  check(duplicate.status === 409, "Usuarios duplicados se rechazan");
+  const [stored] = await db.query("SELECT password_hash FROM usuarios WHERE id=?", [accountId]);
+  check(stored[0].password_hash.startsWith("scrypt:") && !stored[0].password_hash.includes(newAccount.password), "Contraseña almacenada solo como hash");
+  let temporaryCookie = await login("gestion.test");
+  let change = await request("/api/usuarios", { method: "PATCH", cookie: admin, body: { ...newAccount, id: accountId, rol: "operador", password: "" } });
+  check(change.status === 200, "Rol de una cuenta cambia sin redesplegar");
+  let revoked = await request("/api/censo/resumen", { cookie: temporaryCookie });
+  check(revoked.status === 401, "Cambiar rol en BD revoca la sesión anterior");
+  temporaryCookie = await login("gestion.test");
+  change = await request("/api/usuarios", { method: "PATCH", cookie: admin, body: { ...newAccount, id: accountId, rol: "operador", activo: false, password: "" } });
+  check(change.status === 200, "Administrador desactiva una cuenta");
+  revoked = await request("/api/censo/resumen", { cookie: temporaryCookie });
+  check(revoked.status === 401, "Una cuenta desactivada pierde la sesión");
+  const disabledLogin = await request("/api/auth/login", { method: "POST", body: { usuario: "gestion.test", password: "local-test-password-123" } });
+  check(disabledLogin.status === 401, "Una cuenta desactivada no inicia sesión");
+  change = await request("/api/usuarios", { method: "PATCH", cookie: admin, body: { ...newAccount, id: accountId, rol: "operador", password: "" } });
+  check(change.status === 200, "Se puede reactivar una cuenta sin cambiar su contraseña");
+  revoked = await request("/api/censo/resumen", { cookie: temporaryCookie });
+  check(revoked.status === 401, "Reactivar la cuenta no restaura sus sesiones anteriores");
+  change = await request("/api/usuarios", { method: "PATCH", cookie: admin, body: { ...newAccount, id: accountId, password: "contraseña-nueva-test-123" } });
+  check(change.status === 200, "Contraseña se restablece desde administración");
+  const oldPassword = await request("/api/auth/login", { method: "POST", body: { usuario: "gestion.test", password: "local-test-password-123" } });
+  check(oldPassword.status === 401, "La contraseña anterior deja de funcionar");
+  const newPassword = await request("/api/auth/login", { method: "POST", body: { usuario: "gestion.test", password: "contraseña-nueva-test-123" } });
+  check(newPassword.status === 200, "La contraseña nueva funciona sin redesplegar");
   for (const [cookie, origin] of [[operator, true], [reader, true], [admin, false]]) {
     const denied = await request("/api/test-servicio", {
       method: "POST",

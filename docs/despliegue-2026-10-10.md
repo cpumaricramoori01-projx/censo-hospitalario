@@ -8,8 +8,8 @@ Las doce tablas inm_* de la aplicación inmobiliaria fueron eliminadas con autor
 
 ## Desarrollo y producción
 
-El repositorio incluye un devcontainer con Node 24. Codespaces ejecuta npm ci al crear el entorno. Copiar .env.example a .env.local y configurar los secretos únicamente en ese archivo o en los secretos de Codespaces; nunca subirlos al repositorio. Usar npm run dev para el puerto 3000.
+El repositorio incluye un devcontainer con Node 24. Codespaces ejecuta npm ci al crear el entorno. Configurar la conexión y SESSION_SECRET en los secretos de Codespaces, sin archivos .env con credenciales; nunca subirlos al repositorio. Usar npm run dev para el puerto 3000.
 
-Vercel sigue la rama main de cpumaricramoori01-projx/censo-hospitalario. Necesita DATABASE_URL, DATABASE_SSL=true, DATABASE_CA, SESSION_SECRET y AUTH_USERS. La conexión valida el certificado CA de Aiven. Node 24 está fijado en package.json y en el proyecto Vercel.
+Vercel sigue la rama main de cpumaricramoori01-projx/censo-hospitalario. Necesita DATABASE_URL, DATABASE_SSL=true, DATABASE_CA, SESSION_SECRET. Las cuentas se almacenan en usuarios y se administran desde la pantalla Usuarios; AUTH_USERS ya no es necesario. La conexión valida el certificado CA de Aiven. Node 24 está fijado en package.json y en el proyecto Vercel.
 
 El script scripts/seed-demo.ts pertenece al esquema anterior. La preparación vigente y protegida de datos ficticios es scripts/seed-demo.mjs y acepta exclusivamente la base local de pruebas documentada en README.md.

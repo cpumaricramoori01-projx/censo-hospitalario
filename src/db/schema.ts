@@ -313,3 +313,15 @@ export const intentosAcceso = mysqlTable("intentos_acceso", {
   intentos: int("intentos").notNull(),
   ventana: datetime("ventana").notNull(),
 });
+
+export const usuarios = mysqlTable("usuarios", {
+  id: int("id").primaryKey().autoincrement(),
+  usuario: varchar("usuario", { length: 64 }).notNull().unique(),
+  nombre: varchar("nombre", { length: 100 }).notNull(),
+  rol: varchar("rol", { length: 20, enum: ["administrador", "operador", "consulta"] }).notNull(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  versionSesion: int("version_sesion").notNull().default(1),
+  activo: boolean("activo").notNull().default(true),
+  creadoEn: datetime("creado_en").notNull(),
+  actualizadoEn: datetime("actualizado_en").notNull(),
+});

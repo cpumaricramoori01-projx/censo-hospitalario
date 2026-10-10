@@ -31,6 +31,7 @@ const items: {
     icon: "bed",
     role: "admin",
   },
+  { label: "Usuarios", href: "/usuarios", icon: "settings", role: "admin" },
   { label: "Reportes", href: "/reportes", icon: "report" },
 ];
 export default function Sidebar() {

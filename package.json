@@ -8,13 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "node --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs generate",
-    "db:migrate": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs migrate",
-    "db:studio": "node --env-file=.env.local node_modules/drizzle-kit/bin.cjs studio",
+    "db:migrate": "node --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs migrate",
+    "db:studio": "node --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs studio",
     "auth:hash": "node scripts/hash-password.mjs",
     "test": "node --experimental-strip-types --test --test-isolation=none tests/*.test.ts",
-    "db:check": "node --env-file=.env.local scripts/check-data.mjs",
-    "db:upgrade": "node --env-file=.env.local scripts/upgrade.mjs",
-    "test:integration": "node --env-file=.env.local tests/integration.mjs"
+    "db:check": "node --env-file-if-exists=.env.local scripts/check-data.mjs",
+    "db:upgrade": "node --env-file-if-exists=.env.local scripts/upgrade.mjs",
+    "test:integration": "node --env-file-if-exists=.env.local tests/integration.mjs",
+    "auth:install": "node --env-file-if-exists=.env.local scripts/install-users.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",
