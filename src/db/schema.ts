@@ -8,6 +8,8 @@ import {
   boolean,
   text,
   foreignKey,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 
@@ -22,7 +24,9 @@ export const pacientesRef = mysqlTable("pacientes_ref", {
   correo: varchar("correo", { length: 120 }),
   telefono: varchar("telefono", { length: 20 }),
   direccion: varchar("direccion", { length: 200 }),
-  origenDato: varchar("origen_dato", { length: 20 }).notNull().default("manual"),
+  origenDato: varchar("origen_dato", { length: 20 })
+    .notNull()
+    .default("manual"),
   fechaActualizacion: datetime("fecha_actualizacion").notNull(),
 });
 
@@ -57,7 +61,11 @@ export const especialidades = mysqlTable(
     servicioId: int("servicio_id").notNull(),
   },
   (table) => ({
-    servicioFk: foreignKey({ columns: [table.servicioId], foreignColumns: [servicios.id], name: "especialidades_servicio_fk" }),
+    servicioFk: foreignKey({
+      columns: [table.servicioId],
+      foreignColumns: [servicios.id],
+      name: "especialidades_servicio_fk",
+    }),
   }),
 );
 
@@ -71,7 +79,15 @@ export const camas = mysqlTable(
     especialidadId: int("especialidad_id").notNull(),
   },
   (table) => ({
-    especialidadFk: foreignKey({ columns: [table.especialidadId], foreignColumns: [especialidades.id], name: "camas_especialidad_fk" }),
+    numeroUnico: uniqueIndex("camas_numero_especialidad_uq").on(
+      table.especialidadId,
+      table.numero,
+    ),
+    especialidadFk: foreignKey({
+      columns: [table.especialidadId],
+      foreignColumns: [especialidades.id],
+      name: "camas_especialidad_fk",
+    }),
   }),
 );
 
@@ -82,22 +98,50 @@ export const ingresos = mysqlTable(
     hc: varchar("hc", { length: 20 }).notNull(),
     camaId: int("cama_id").notNull(),
     fechaIngreso: datetime("fecha_ingreso").notNull(),
+    fechaRegistro: datetime("fecha_registro").notNull(),
+    registradoPor: varchar("registrado_por", { length: 100 }).notNull(),
+    servicioIngresoId: int("servicio_ingreso_id"),
+    servicioIngreso: varchar("servicio_ingreso", { length: 60 }),
+    especialidadIngreso: varchar("especialidad_ingreso", { length: 80 }),
+    camaIngreso: varchar("cama_ingreso", { length: 10 }),
     medico: varchar("medico", { length: 100 }),
     medicoId: int("medico_id"),
-    tipoIngreso: varchar("tipo_ingreso", { length: 20 }).notNull().default("normal"),
+    tipoIngreso: varchar("tipo_ingreso", { length: 20 })
+      .notNull()
+      .default("normal"),
     servicioOrigenId: int("servicio_origen_id"),
     financiamiento: varchar("financiamiento", { length: 40 }),
     usaVentilador: boolean("usa_ventilador").notNull().default(false),
     usaOxigeno: boolean("usa_oxigeno").notNull().default(false),
-    tieneProblemaJudicial: boolean("tiene_problema_judicial").notNull().default(false),
-    tieneProblemaSocial: boolean("tiene_problema_social").notNull().default(false),
+    tieneProblemaJudicial: boolean("tiene_problema_judicial")
+      .notNull()
+      .default(false),
+    tieneProblemaSocial: boolean("tiene_problema_social")
+      .notNull()
+      .default(false),
     notasEstancia: text("notas_estancia"),
   },
   (table) => ({
-    pacienteFk: foreignKey({ columns: [table.hc], foreignColumns: [pacientesRef.hc], name: "ingresos_paciente_fk" }),
-    camaFk: foreignKey({ columns: [table.camaId], foreignColumns: [camas.id], name: "ingresos_cama_fk" }),
-    servicioOrigenFk: foreignKey({ columns: [table.servicioOrigenId], foreignColumns: [servicios.id], name: "ingresos_servicio_origen_fk" }),
-    medicoFk: foreignKey({ columns: [table.medicoId], foreignColumns: [medicos.id], name: "ingresos_medico_fk" }),
+    pacienteFk: foreignKey({
+      columns: [table.hc],
+      foreignColumns: [pacientesRef.hc],
+      name: "ingresos_paciente_fk",
+    }),
+    camaFk: foreignKey({
+      columns: [table.camaId],
+      foreignColumns: [camas.id],
+      name: "ingresos_cama_fk",
+    }),
+    servicioOrigenFk: foreignKey({
+      columns: [table.servicioOrigenId],
+      foreignColumns: [servicios.id],
+      name: "ingresos_servicio_origen_fk",
+    }),
+    medicoFk: foreignKey({
+      columns: [table.medicoId],
+      foreignColumns: [medicos.id],
+      name: "ingresos_medico_fk",
+    }),
   }),
 );
 
@@ -111,7 +155,11 @@ export const diagnosticosIngreso = mysqlTable(
     cie10Descripcion: varchar("cie10_descripcion", { length: 250 }).notNull(),
   },
   (table) => ({
-    ingresoFk: foreignKey({ columns: [table.ingresoId], foreignColumns: [ingresos.id], name: "diagnosticos_ingreso_fk" }),
+    ingresoFk: foreignKey({
+      columns: [table.ingresoId],
+      foreignColumns: [ingresos.id],
+      name: "diagnosticos_ingreso_fk",
+    }),
   }),
 );
 
@@ -121,6 +169,11 @@ export const movimientos = mysqlTable("movimientos", {
   camaOrigenId: int("cama_origen_id"),
   camaDestinoId: int("cama_destino_id"),
   fecha: datetime("fecha").notNull(),
+  fechaRegistro: datetime("fecha_registro").notNull(),
+  tipo: varchar("tipo", { length: 20 }).notNull().default("traslado"),
+  motivo: text("motivo"),
+  responsable: varchar("responsable", { length: 100 }).notNull(),
+  detalle: text("detalle"),
 });
 
 export const egresos = mysqlTable(
@@ -129,6 +182,12 @@ export const egresos = mysqlTable(
     id: int("id").primaryKey().autoincrement(),
     ingresoId: int("ingreso_id").notNull().unique(),
     fechaEgreso: datetime("fecha_egreso").notNull(),
+    fechaRegistro: datetime("fecha_registro").notNull(),
+    registradoPor: varchar("registrado_por", { length: 100 }).notNull(),
+    servicioEgresoId: int("servicio_egreso_id"),
+    servicioEgreso: varchar("servicio_egreso", { length: 60 }),
+    especialidadEgreso: varchar("especialidad_egreso", { length: 80 }),
+    camaEgreso: varchar("cama_egreso", { length: 10 }),
     tipoEgreso: varchar("tipo_egreso", { length: 30 }).notNull(),
     codigoEgresoOriginal: varchar("codigo_egreso_original", { length: 10 }),
     servicioDestinoId: int("servicio_destino_id"),
@@ -137,26 +196,120 @@ export const egresos = mysqlTable(
     notas: text("notas"),
   },
   (table) => ({
-    ingresoFk: foreignKey({ columns: [table.ingresoId], foreignColumns: [ingresos.id], name: "egresos_ingreso_fk" }),
-    servicioDestinoFk: foreignKey({ columns: [table.servicioDestinoId], foreignColumns: [servicios.id], name: "egresos_servicio_destino_fk" }),
+    ingresoFk: foreignKey({
+      columns: [table.ingresoId],
+      foreignColumns: [ingresos.id],
+      name: "egresos_ingreso_fk",
+    }),
+    servicioDestinoFk: foreignKey({
+      columns: [table.servicioDestinoId],
+      foreignColumns: [servicios.id],
+      name: "egresos_servicio_destino_fk",
+    }),
   }),
 );
 
-export const serviciosRelations = relations(servicios, ({ many }) => ({ especialidades: many(especialidades) }));
-export const especialidadesRelations = relations(especialidades, ({ one, many }) => ({ servicio: one(servicios, { fields: [especialidades.servicioId], references: [servicios.id] }), camas: many(camas) }));
-export const camasRelations = relations(camas, ({ one, many }) => ({ especialidad: one(especialidades, { fields: [camas.especialidadId], references: [especialidades.id] }), ingresos: many(ingresos) }));
+export const serviciosRelations = relations(servicios, ({ many }) => ({
+  especialidades: many(especialidades),
+}));
+export const especialidadesRelations = relations(
+  especialidades,
+  ({ one, many }) => ({
+    servicio: one(servicios, {
+      fields: [especialidades.servicioId],
+      references: [servicios.id],
+    }),
+    camas: many(camas),
+  }),
+);
+export const camasRelations = relations(camas, ({ one, many }) => ({
+  especialidad: one(especialidades, {
+    fields: [camas.especialidadId],
+    references: [especialidades.id],
+  }),
+  ingresos: many(ingresos),
+}));
 export const ingresosRelations = relations(ingresos, ({ one, many }) => ({
-  paciente: one(pacientesRef, { fields: [ingresos.hc], references: [pacientesRef.hc] }),
+  paciente: one(pacientesRef, {
+    fields: [ingresos.hc],
+    references: [pacientesRef.hc],
+  }),
   cama: one(camas, { fields: [ingresos.camaId], references: [camas.id] }),
-  servicioOrigen: one(servicios, { fields: [ingresos.servicioOrigenId], references: [servicios.id] }),
-  medico: one(medicos, { fields: [ingresos.medicoId], references: [medicos.id] }),
+  servicioOrigen: one(servicios, {
+    fields: [ingresos.servicioOrigenId],
+    references: [servicios.id],
+  }),
+  medico: one(medicos, {
+    fields: [ingresos.medicoId],
+    references: [medicos.id],
+  }),
   diagnosticos: many(diagnosticosIngreso),
   movimientos: many(movimientos),
   egreso: one(egresos),
 }));
-export const diagnosticosIngresoRelations = relations(diagnosticosIngreso, ({ one }) => ({ ingreso: one(ingresos, { fields: [diagnosticosIngreso.ingresoId], references: [ingresos.id] }) }));
-export const movimientosRelations = relations(movimientos, ({ one }) => ({ ingreso: one(ingresos, { fields: [movimientos.ingresoId], references: [ingresos.id] }) }));
-export const egresosRelations = relations(egresos, ({ one }) => ({
-  ingreso: one(ingresos, { fields: [egresos.ingresoId], references: [ingresos.id] }),
-  servicioDestino: one(servicios, { fields: [egresos.servicioDestinoId], references: [servicios.id] }),
+export const diagnosticosIngresoRelations = relations(
+  diagnosticosIngreso,
+  ({ one }) => ({
+    ingreso: one(ingresos, {
+      fields: [diagnosticosIngreso.ingresoId],
+      references: [ingresos.id],
+    }),
+  }),
+);
+export const movimientosRelations = relations(movimientos, ({ one }) => ({
+  ingreso: one(ingresos, {
+    fields: [movimientos.ingresoId],
+    references: [ingresos.id],
+  }),
 }));
+export const egresosRelations = relations(egresos, ({ one }) => ({
+  ingreso: one(ingresos, {
+    fields: [egresos.ingresoId],
+    references: [ingresos.id],
+  }),
+  servicioDestino: one(servicios, {
+    fields: [egresos.servicioDestinoId],
+    references: [servicios.id],
+  }),
+}));
+
+// La tabla activa garantiza una hospitalización por paciente y una asignación por cama.
+export const ocupacionesActivas = mysqlTable("ocupaciones_activas", {
+  ingresoId: int("ingreso_id")
+    .primaryKey()
+    .references(() => ingresos.id),
+  hc: varchar("hc", { length: 20 })
+    .notNull()
+    .unique()
+    .references(() => pacientesRef.hc),
+  camaId: int("cama_id")
+    .notNull()
+    .unique()
+    .references(() => camas.id),
+});
+export const ubicacionesIngreso = mysqlTable(
+  "ubicaciones_ingreso",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    ingresoId: int("ingreso_id")
+      .notNull()
+      .references(() => ingresos.id),
+    camaId: int("cama_id")
+      .notNull()
+      .references(() => camas.id),
+    servicioId: int("servicio_id").notNull(),
+    servicio: varchar("servicio", { length: 60 }).notNull(),
+    especialidad: varchar("especialidad", { length: 80 }).notNull(),
+    cama: varchar("cama", { length: 10 }).notNull(),
+    desde: datetime("desde").notNull(),
+    hasta: datetime("hasta"),
+  },
+  (t) => ({
+    ingresoIdx: index("ubicaciones_ingreso_idx").on(t.ingresoId, t.desde),
+  }),
+);
+export const intentosAcceso = mysqlTable("intentos_acceso", {
+  clave: varchar("clave", { length: 64 }).primaryKey(),
+  intentos: int("intentos").notNull(),
+  ventana: datetime("ventana").notNull(),
+});

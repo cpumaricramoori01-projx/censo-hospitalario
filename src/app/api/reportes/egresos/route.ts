@@ -1,14 +1,22 @@
+import { periodoReporte, diasEstancia } from "@/lib/hospital";
+import { HttpError, identificador } from "@/lib/validation";
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { egresos, ingresos, pacientesRef, camas, especialidades, servicios } from "@/db/schema";
-import { and, eq, gte, lte } from "drizzle-orm";
-
-function finDelDia(fecha: string) {
-  return new Date(`${fecha}T23:59:59.999`);
-}
+import {
+  egresos,
+  ingresos,
+  pacientesRef,
+  camas,
+  especialidades,
+  servicios,
+} from "@/db/schema";
+import { and, eq, gte, lt } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
+    await requireUser();
     const { searchParams } = new URL(request.url);
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
@@ -16,10 +24,18 @@ export async function GET(request: NextRequest) {
     const tipo = searchParams.get("tipo");
 
     const condiciones = [];
-    if (desde) condiciones.push(gte(egresos.fechaEgreso, new Date(`${desde}T00:00:00`)));
-    if (hasta) condiciones.push(lte(egresos.fechaEgreso, finDelDia(hasta)));
+    let periodo;
+    try {
+      periodo = periodoReporte(desde, hasta);
+    } catch (e) {
+      throw new HttpError((e as Error).message);
+    }
+    if (periodo.inicio)
+      condiciones.push(gte(egresos.fechaEgreso, periodo.inicio));
+    if (periodo.fin) condiciones.push(lt(egresos.fechaEgreso, periodo.fin));
     if (tipo) condiciones.push(eq(egresos.tipoEgreso, tipo));
-    if (servicioId && servicioId !== "todos") condiciones.push(eq(servicios.id, Number(servicioId)));
+    if (servicioId && servicioId !== "todos")
+      condiciones.push(eq(egresos.servicioEgresoId, identificador(servicioId)));
 
     const filas = await db
       .select({
@@ -36,10 +52,10 @@ export async function GET(request: NextRequest) {
         medicoAlta: egresos.medicoAlta,
         diagnosticoFinal: egresos.diagnosticoFinal,
         notas: egresos.notas,
-        cama: camas.numero,
-        especialidad: especialidades.nombre,
-        servicioId: servicios.id,
-        servicio: servicios.nombre,
+        cama: egresos.camaEgreso,
+        especialidad: egresos.especialidadEgreso,
+        servicioId: egresos.servicioEgresoId,
+        servicio: egresos.servicioEgreso,
       })
       .from(egresos)
       .innerJoin(ingresos, eq(egresos.ingresoId, ingresos.id))
@@ -51,14 +67,15 @@ export async function GET(request: NextRequest) {
 
     const resultado = filas.map((f) => ({
       ...f,
-      paciente: [f.nombres, f.apellidoPaterno, f.apellidoMaterno].filter(Boolean).join(" "),
+      paciente: [f.nombres, f.apellidoPaterno, f.apellidoMaterno]
+        .filter(Boolean)
+        .join(" "),
       tipoEgresoTexto: f.tipoEgreso.replace(/_/g, " "),
-      diasEstancia: Math.max(0, Math.floor((new Date(f.fechaEgreso).getTime() - new Date(f.fechaIngreso).getTime()) / 86400000)),
+      diasEstancia: diasEstancia(f.fechaIngreso, f.fechaEgreso),
     }));
 
     return NextResponse.json(resultado);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudo consultar el reporte de egresos." }, { status: 500 });
+    return fallo(error);
   }
 }

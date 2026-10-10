@@ -3,6 +3,7 @@
 "use client";
 
 import Link from "next/link";
+import { fechaLocalInput } from "@/lib/hospital";
 import { useEffect, useRef, useState } from "react";
 
 type Servicio = { id: number; nombre: string };
@@ -70,8 +71,9 @@ export default function NuevoIngresoPage() {
   const [camaId, setCamaId] = useState("");
 
   const [hc, setHc] = useState("");
-  const [pacienteEncontrado, setPacienteEncontrado] =
-    useState<Paciente | null>(null);
+  const [pacienteEncontrado, setPacienteEncontrado] = useState<Paciente | null>(
+    null,
+  );
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
 
   const [busquedaPaciente, setBusquedaPaciente] = useState("");
@@ -79,6 +81,7 @@ export default function NuevoIngresoPage() {
   const [pacienteAbierto, setPacienteAbierto] = useState(false);
   const [pacienteNoEncontrado, setPacienteNoEncontrado] = useState(false);
 
+  const requestIds = useRef<Record<string, number>>({});
   const pacienteRef = useRef<HTMLDivElement | null>(null);
 
   const [dni, setDni] = useState("");
@@ -98,17 +101,15 @@ export default function NuevoIngresoPage() {
 
   const medicoRef = useRef<HTMLDivElement | null>(null);
 
-  const [tipoIngreso, setTipoIngreso] = useState<
-    "normal" | "transferencia"
-  >("normal");
+  const [tipoIngreso, setTipoIngreso] = useState<"normal" | "transferencia">(
+    "normal",
+  );
   const [servicioOrigenId, setServicioOrigenId] = useState("");
   const [financiamiento, setFinanciamiento] = useState("");
   const [usaVentilador, setUsaVentilador] = useState(false);
   const [usaOxigeno, setUsaOxigeno] = useState(false);
-  const [tieneProblemaJudicial, setTieneProblemaJudicial] =
-    useState(false);
-  const [tieneProblemaSocial, setTieneProblemaSocial] =
-    useState(false);
+  const [tieneProblemaJudicial, setTieneProblemaJudicial] = useState(false);
+  const [tieneProblemaSocial, setTieneProblemaSocial] = useState(false);
   const [notasEstancia, setNotasEstancia] = useState("");
 
   const [diagnosticos, setDiagnosticos] = useState<Diagnostico[]>([
@@ -130,50 +131,68 @@ export default function NuevoIngresoPage() {
 
   // Diagnóstico que actualmente tiene abierto el desplegable
   const [diagnosticoAbierto, setDiagnosticoAbierto] = useState<number | null>(
-    null
+    null,
   );
 
   // Referencias de cada buscador para detectar clic fuera
   const diagnosticoRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
+  const [fechaIngreso, setFechaIngreso] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setFechaIngreso(fechaLocalInput()), 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/servicios")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("No se pudieron cargar los datos");
+        return r.json();
+      })
       .then(setServicios)
-      .catch(() =>
-        setMensaje("❌ No se pudieron cargar los servicios"),
-      );
+      .catch(() => setMensaje("❌ No se pudieron cargar los servicios"));
   }, []);
 
   useEffect(() => {
-    if (!servicioId) {
-      setEspecialidades([]);
-      return;
-    }
+    if (!servicioId) return;
 
-    setEspecialidadId("");
-    setCamas([]);
-    setCamaId("");
-
-    fetch(`/api/especialidades?servicioId=${servicioId}`)
-      .then((r) => r.json())
-      .then(setEspecialidades);
+    const controller = new AbortController();
+    fetch(`/api/especialidades?servicioId=${servicioId}`, {
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("No se pudieron cargar los datos");
+        return r.json();
+      })
+      .then(setEspecialidades)
+      .catch(() => {
+        setEspecialidades([]);
+        if (!controller.signal.aborted)
+          setMensaje("No se pudieron cargar las especialidades");
+      });
+    return () => controller.abort();
   }, [servicioId]);
 
   useEffect(() => {
-    if (!especialidadId) {
-      setCamas([]);
-      return;
-    }
+    if (!especialidadId) return;
 
-    setCamaId("");
-
-    fetch(`/api/camas?especialidadId=${especialidadId}`)
-      .then((r) => r.json())
-      .then(setCamas);
+    const controller = new AbortController();
+    fetch(`/api/camas?especialidadId=${especialidadId}`, {
+      signal: controller.signal,
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("No se pudieron cargar los datos");
+        return r.json();
+      })
+      .then(setCamas)
+      .catch(() => {
+        setCamas([]);
+        if (!controller.signal.aborted)
+          setMensaje("No se pudieron cargar las camas");
+      });
+    return () => controller.abort();
   }, [especialidadId]);
 
   // Cierra el buscador CIE-10 al hacer clic fuera
@@ -199,88 +218,92 @@ export default function NuevoIngresoPage() {
     };
   }, [diagnosticoAbierto]);
 
-// Cierra el buscador de pacientes al hacer clic fuera
-useEffect(() => {
-  function manejarClickFuera(event: MouseEvent) {
-    const objetivo = event.target as Node;
+  // Cierra el buscador de pacientes al hacer clic fuera
+  useEffect(() => {
+    function manejarClickFuera(event: MouseEvent) {
+      const objetivo = event.target as Node;
 
-    if (
-      pacienteRef.current &&
-      !pacienteRef.current.contains(objetivo)
-    ) {
+      if (pacienteRef.current && !pacienteRef.current.contains(objetivo)) {
+        setPacienteAbierto(false);
+      }
+    }
+
+    document.addEventListener("mousedown", manejarClickFuera);
+
+    return () => {
+      document.removeEventListener("mousedown", manejarClickFuera);
+    };
+  }, []);
+
+  async function buscarPacientes(termino: string) {
+    const lookupKey = "paciente";
+    const lookupId = (requestIds.current[lookupKey] ?? 0) + 1;
+    requestIds.current[lookupKey] = lookupId;
+
+    setBusquedaPaciente(termino);
+
+    if (termino.trim().length < 2) {
+      setResultadosPaciente([]);
       setPacienteAbierto(false);
+      setPacienteNoEncontrado(false);
+      return;
+    }
+
+    setPacienteAbierto(true);
+    setBuscandoPaciente(true);
+
+    try {
+      const res = await fetch(
+        `/api/pacientes/buscar?q=${encodeURIComponent(termino.trim())}`,
+      );
+
+      if (!res.ok) {
+        throw new Error("Error consultando pacientes");
+      }
+
+      const data = await res.json();
+      if (requestIds.current[lookupKey] !== lookupId) return;
+
+      setResultadosPaciente(data);
+      setPacienteNoEncontrado(data.length === 0);
+      setPacienteAbierto(true);
+    } catch (error) {
+      console.error("Error buscando paciente:", error);
+
+      setResultadosPaciente([]);
+      setPacienteAbierto(false);
+    } finally {
+      if (requestIds.current[lookupKey] === lookupId)
+        setBuscandoPaciente(false);
     }
   }
 
-  document.addEventListener("mousedown", manejarClickFuera);
+  function seleccionarPaciente(paciente: Paciente) {
+    setPacienteEncontrado(paciente);
 
-  return () => {
-    document.removeEventListener("mousedown", manejarClickFuera);
-  };
-}, []);
-
-async function buscarPacientes(termino: string) {
-  setBusquedaPaciente(termino);
-
-  if (termino.trim().length < 2) {
-    setResultadosPaciente([]);
-    setPacienteAbierto(false);
-    setPacienteNoEncontrado(false);
-    return;
-  }
-
-  setPacienteAbierto(true);
-  setBuscandoPaciente(true);
-
-  try {
-    const res = await fetch(
-      `/api/pacientes/buscar?q=${encodeURIComponent(
-        termino.trim(),
-      )}`,
+    setHc(paciente.hc);
+    setDni(paciente.dni ?? "");
+    setNombres(paciente.nombres);
+    setApellidoPaterno(paciente.apellidoPaterno);
+    setApellidoMaterno(paciente.apellidoMaterno ?? "");
+    setSexo((paciente.sexo as "M" | "F" | "") ?? "");
+    setFechaNacimiento(
+      paciente.fechaNacimiento
+        ? String(paciente.fechaNacimiento).slice(0, 10)
+        : "",
     );
 
-    if (!res.ok) {
-      throw new Error("Error consultando pacientes");
-    }
-
-    const data = await res.json();
-
-    setResultadosPaciente(data);
-    setPacienteNoEncontrado(data.length === 0);
-    setPacienteAbierto(true);
-  } catch (error) {
-    console.error("Error buscando paciente:", error);
-
+    setBusquedaPaciente("");
     setResultadosPaciente([]);
     setPacienteAbierto(false);
-  } finally {
-    setBuscandoPaciente(false);
+    setMensaje(null);
   }
-}
-
-function seleccionarPaciente(paciente: Paciente) {
-  setPacienteEncontrado(paciente);
-
-  setHc(paciente.hc);
-  setDni(paciente.dni ?? "");
-  setNombres(paciente.nombres);
-  setApellidoPaterno(paciente.apellidoPaterno);
-  setApellidoMaterno(paciente.apellidoMaterno ?? "");
-  setSexo((paciente.sexo as "M" | "F" | "") ?? "");
-  setFechaNacimiento(
-    paciente.fechaNacimiento
-      ? String(paciente.fechaNacimiento).slice(0, 10)
-      : "",
-  );
-
-  setBusquedaPaciente("");
-  setResultadosPaciente([]);
-  setPacienteAbierto(false);
-  setMensaje(null);
-}
-
 
   async function buscarMedicos(termino: string) {
+    const lookupKey = "medico";
+    const lookupId = (requestIds.current[lookupKey] ?? 0) + 1;
+    requestIds.current[lookupKey] = lookupId;
+
     setBusquedaMedico(termino);
 
     if (termino.trim().length < 2) {
@@ -302,6 +325,8 @@ function seleccionarPaciente(paciente: Paciente) {
       }
 
       const data = await res.json();
+      if (requestIds.current[lookupKey] !== lookupId) return;
+      if (requestIds.current[lookupKey] !== lookupId) return;
 
       setResultadosMedico(data);
       setMedicoAbierto(true);
@@ -316,11 +341,7 @@ function seleccionarPaciente(paciente: Paciente) {
   }
 
   function seleccionarMedico(m: Medico) {
-    const nombreCompleto = [
-      m.nombres,
-      m.apellidoPaterno,
-      m.apellidoMaterno,
-    ]
+    const nombreCompleto = [m.nombres, m.apellidoPaterno, m.apellidoMaterno]
       .filter(Boolean)
       .join(" ");
 
@@ -332,6 +353,10 @@ function seleccionarPaciente(paciente: Paciente) {
   }
 
   async function buscarDiagnosticos(i: number, termino: string) {
+    const lookupKey = `diagnostico-${i}`;
+    const lookupId = (requestIds.current[lookupKey] ?? 0) + 1;
+    requestIds.current[lookupKey] = lookupId;
+
     setBusquedaDiagnostico((prev) => ({
       ...prev,
       [i]: termino,
@@ -365,6 +390,8 @@ function seleccionarPaciente(paciente: Paciente) {
       }
 
       const data = await res.json();
+      if (requestIds.current[lookupKey] !== lookupId) return;
+      if (requestIds.current[lookupKey] !== lookupId) return;
 
       setResultadosDiagnostico((prev) => ({
         ...prev,
@@ -423,11 +450,7 @@ function seleccionarPaciente(paciente: Paciente) {
     valor: string,
   ) {
     setDiagnosticos((prev) =>
-      prev.map((d, idx) =>
-        idx === i
-          ? { ...d, [campo]: valor }
-          : d,
-      ),
+      prev.map((d, idx) => (idx === i ? { ...d, [campo]: valor } : d)),
     );
   }
 
@@ -442,9 +465,7 @@ function seleccionarPaciente(paciente: Paciente) {
   }
 
   function quitarDiagnostico(i: number) {
-    setDiagnosticos((prev) =>
-      prev.filter((_, idx) => idx !== i),
-    );
+    setDiagnosticos((prev) => prev.filter((_, idx) => idx !== i));
 
     setBusquedaDiagnostico((prev) => {
       const nuevo = { ...prev };
@@ -481,16 +502,11 @@ function seleccionarPaciente(paciente: Paciente) {
         },
         body: JSON.stringify({
           hc,
+          fechaIngreso,
           dni: pacienteEncontrado ? undefined : dni,
-          nombres: pacienteEncontrado
-            ? undefined
-            : nombres,
-          apellidoPaterno: pacienteEncontrado
-            ? undefined
-            : apellidoPaterno,
-          apellidoMaterno: pacienteEncontrado
-            ? undefined
-            : apellidoMaterno,
+          nombres: pacienteEncontrado ? undefined : nombres,
+          apellidoPaterno: pacienteEncontrado ? undefined : apellidoPaterno,
+          apellidoMaterno: pacienteEncontrado ? undefined : apellidoMaterno,
           sexo: pacienteEncontrado ? undefined : sexo,
           fechaNacimiento: pacienteEncontrado
             ? undefined
@@ -522,10 +538,9 @@ function seleccionarPaciente(paciente: Paciente) {
       const data = await res.json();
 
       if (res.ok) {
-        setMensaje(
-          `✅ Ingreso registrado correctamente (id ${data.id})`,
-        );
+        setMensaje(`✅ Ingreso registrado correctamente (id ${data.id})`);
 
+        setFechaIngreso(fechaLocalInput());
         setHc("");
         setDni("");
         setNombres("");
@@ -572,11 +587,16 @@ function seleccionarPaciente(paciente: Paciente) {
         setCamaId("");
 
         if (especialidadId) {
-          fetch(
-            `/api/camas?especialidadId=${especialidadId}`,
-          )
-            .then((r) => r.json())
-            .then(setCamas);
+          fetch(`/api/camas?especialidadId=${especialidadId}`)
+            .then((r) => {
+              if (!r.ok) throw new Error("No se pudieron cargar los datos");
+              return r.json();
+            })
+            .then(setCamas)
+            .catch(() => {
+              setCamas([]);
+              setMensaje("No se pudieron cargar las camas");
+            });
         }
       } else {
         setMensaje(`❌ ${data.error}`);
@@ -589,20 +609,14 @@ function seleccionarPaciente(paciente: Paciente) {
   }
 
   const diagnosticoValido = diagnosticos.some(
-    (d) =>
-      d.cie10Codigo.trim() !== "" &&
-      d.cie10Descripcion.trim() !== "",
+    (d) => d.cie10Codigo.trim() !== "" && d.cie10Descripcion.trim() !== "",
   );
 
-  const transferenciaValida =
-    tipoIngreso === "normal" || !!servicioOrigenId;
+  const transferenciaValida = tipoIngreso === "normal" || !!servicioOrigenId;
 
   const pacienteValido =
     pacienteEncontrado ||
-    (pacienteNoEncontrado &&
-      nombres.trim() &&
-      apellidoPaterno.trim() &&
-      sexo);
+    (pacienteNoEncontrado && nombres.trim() && apellidoPaterno.trim() && sexo);
 
   const listo =
     servicioId &&
@@ -616,22 +630,16 @@ function seleccionarPaciente(paciente: Paciente) {
     <div className="form-page ingreso-form-page">
       <header className="page-heading page-heading-with-action">
         <div>
-          <p className="page-kicker">
-            Admisión hospitalaria
-          </p>
+          <p className="page-kicker">Admisión hospitalaria</p>
 
           <h1>Registrar ingreso</h1>
 
           <p>
-            Registra una nueva hospitalización y asigna
-            la cama correspondiente.
+            Registra una nueva hospitalización y asigna la cama correspondiente.
           </p>
         </div>
 
-        <Link
-          href="/panel"
-          className="page-heading-action"
-        >
+        <Link href="/panel" className="page-heading-action">
           ← Volver al panel
         </Link>
       </header>
@@ -640,332 +648,153 @@ function seleccionarPaciente(paciente: Paciente) {
         {/* 01 UBICACIÓN */}
         <section className="form-section">
           <div className="form-section-title">
-            01 · Ubicación hospitalaria
+            01 · Identificación del paciente
           </div>
 
           <p className="form-section-description">
-            Selecciona dónde será hospitalizado el
-            paciente.
+            Busca por historia clínica, DNI, nombres o apellidos. Si no existe,
+            completa los datos manualmente.
           </p>
 
-          <div className="form-field">
-            <label className="form-label">
-              Servicio
-            </label>
-
-            <select
-              value={servicioId}
-              onChange={(e) =>
-                setServicioId(e.target.value)
-              }
-              className="form-select"
-            >
-              <option value="">
-                Selecciona un servicio
-              </option>
-
-              {servicios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {servicioId && (
-            <div className="form-field">
-              <label className="form-label">
-                Especialidad
-              </label>
-
-              <select
-                value={especialidadId}
-                onChange={(e) =>
-                  setEspecialidadId(e.target.value)
-                }
-                className="form-select"
-              >
-                <option value="">
-                  Selecciona una especialidad
-                </option>
-
-                {especialidades.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {especialidadId && (
-            <div className="form-field">
-              <label className="form-label">
-                Cama libre
-              </label>
-
-              <select
-                value={camaId}
-                onChange={(e) =>
-                  setCamaId(e.target.value)
-                }
-                className="form-select"
-              >
-                <option value="">
-                  {camas.length === 0
-                    ? "No hay camas libres"
-                    : "Selecciona una cama"}
-                </option>
-
-                {camas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    Cama {c.numero}
-                    {c.ubicacion
-                      ? ` — ${c.ubicacion}`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-
-              {camas.length > 0 && (
-                <p
-                  style={{
-                    margin: "6px 0 0",
-                    fontSize: 12,
-                    color: "var(--success)",
-                  }}
-                >
-                  ● {camas.length} cama
-                  {camas.length !== 1 ? "s" : ""}{" "}
-                  disponible
-                  {camas.length !== 1 ? "s" : ""}
-                </p>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* 02 TIPO DE INGRESO */}
-        <section className="form-section">
-          <div className="form-section-title">
-            02 · Tipo de ingreso
-          </div>
-
-          <p className="form-section-description">
-            Define cómo se produce el ingreso del
-            paciente.
-          </p>
-
-          <div className="form-field">
-            <label className="form-label">
-              Tipo de ingreso
-            </label>
-
-            <select
-              value={tipoIngreso}
-              onChange={(e) =>
-                setTipoIngreso(
-                  e.target.value as
-                    | "normal"
-                    | "transferencia",
-                )
-              }
-              className="form-select"
-            >
-              <option value="normal">
-                Ingreso normal
-              </option>
-
-              <option value="transferencia">
-                Admitido por transferencia
-              </option>
-            </select>
-          </div>
-
-          {tipoIngreso === "transferencia" && (
-            <div className="form-field">
-              <label className="form-label">
-                Servicio de origen
-              </label>
-
-              <select
-                value={servicioOrigenId}
-                onChange={(e) =>
-                  setServicioOrigenId(
-                    e.target.value,
-                  )
-                }
-                className="form-select"
-              >
-                <option value="">
-                  Selecciona el servicio de origen
-                </option>
-
-                {servicios.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </section>
-
-        {/* 03 IDENTIFICACIÓN */}
-        <section className="form-section">
-          <div className="form-section-title">
-            03 · Identificación del paciente
-          </div>
-
-          <p className="form-section-description">
-        Busca por historia clínica, DNI, nombres o
-apellidos. Si no existe, completa los datos
-manualmente.
-          </p>
-
-     <div
-  className="form-field"
-  ref={pacienteRef}
-  style={{ position: "relative" }}
->
-  <label className="form-label">
-    Buscar paciente
-  </label>
-
-  <input
-    type="text"
-    value={busquedaPaciente}
-    onChange={(e) => {
-      buscarPacientes(e.target.value);
-
-      // Si empieza una nueva búsqueda,
-      // quitamos la selección anterior.
-      if (pacienteEncontrado) {
-        setPacienteEncontrado(null);
-        setHc("");
-        setDni("");
-        setNombres("");
-        setApellidoPaterno("");
-        setApellidoMaterno("");
-        setSexo("");
-        setFechaNacimiento("");
-      }
-    }}
-    onFocus={() => {
-      if (busquedaPaciente.trim().length >= 2) {
-        setPacienteAbierto(true);
-      }
-    }}
-    placeholder="HC, DNI, nombres o apellidos..."
-    className="form-input"
-    autoComplete="off"
-  />
-
-  {buscandoPaciente && pacienteAbierto && (
-    <div
-      style={{
-        marginTop: 6,
-        fontSize: 12,
-        color: "var(--muted)",
-      }}
-    >
-      Buscando pacientes...
-    </div>
-  )}
-
-  {!buscandoPaciente &&
-    pacienteAbierto &&
-    resultadosPaciente.length > 0 && (
-      <div
-        style={{
-          position: "absolute",
-          zIndex: 30,
-          left: 0,
-          right: 0,
-          top: "100%",
-          marginTop: 4,
-          background: "#fff",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          boxShadow:
-            "0 8px 24px rgba(0,0,0,0.12)",
-          maxHeight: 280,
-          overflowY: "auto",
-        }}
-      >
-        {resultadosPaciente.map((p) => (
-          <button
-            key={p.hc}
-            type="button"
-            onClick={() => seleccionarPaciente(p)}
-            style={{
-              width: "100%",
-              display: "block",
-              textAlign: "left",
-              padding: "11px 12px",
-              border: "none",
-              borderBottom:
-                "1px solid var(--border)",
-              background: "#fff",
-              cursor: "pointer",
-            }}
+          <div
+            className="form-field"
+            ref={pacienteRef}
+            style={{ position: "relative" }}
           >
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: 13,
-              }}
-            >
-              {p.nombres} {p.apellidoPaterno}{" "}
-              {p.apellidoMaterno ?? ""}
-            </div>
+            <label className="form-label">Buscar paciente</label>
 
-            <div
-              style={{
-                marginTop: 3,
-                fontSize: 12,
-                color: "var(--muted)",
-              }}
-            >
-              HC: {p.hc}
-              {p.dni ? ` · DNI: ${p.dni}` : ""}
-            </div>
+            <input
+              type="text"
+              value={busquedaPaciente}
+              onChange={(e) => {
+                buscarPacientes(e.target.value);
 
-            {p.sexo && (
+                // Si empieza una nueva búsqueda,
+                // quitamos la selección anterior.
+                if (pacienteEncontrado) {
+                  setPacienteEncontrado(null);
+                  setHc("");
+                  setDni("");
+                  setNombres("");
+                  setApellidoPaterno("");
+                  setApellidoMaterno("");
+                  setSexo("");
+                  setFechaNacimiento("");
+                }
+              }}
+              onFocus={() => {
+                if (busquedaPaciente.trim().length >= 2) {
+                  setPacienteAbierto(true);
+                }
+              }}
+              placeholder="HC, DNI, nombres o apellidos..."
+              className="form-input"
+              autoComplete="off"
+            />
+
+            {buscandoPaciente && pacienteAbierto && (
               <div
                 style={{
-                  marginTop: 2,
-                  fontSize: 11,
+                  marginTop: 6,
+                  fontSize: 12,
                   color: "var(--muted)",
                 }}
               >
-                {p.sexo === "M"
-                  ? "Hombre"
-                  : p.sexo === "F"
-                  ? "Mujer"
-                  : p.sexo}
+                Buscando pacientes...
               </div>
             )}
-          </button>
-        ))}
-      </div>
-    )}
 
-  {!buscandoPaciente &&
-    pacienteAbierto &&
-    busquedaPaciente.trim().length >= 2 &&
-    resultadosPaciente.length === 0 && (
-      <div
-        style={{
-          marginTop: 6,
-          fontSize: 12,
-          color: "var(--muted)",
-        }}
-      >
-        No se encontraron pacientes.
-      </div>
-    )}
-</div>
+            {!buscandoPaciente &&
+              pacienteAbierto &&
+              resultadosPaciente.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    zIndex: 30,
+                    left: 0,
+                    right: 0,
+                    top: "100%",
+                    marginTop: 4,
+                    background: "#fff",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    maxHeight: 280,
+                    overflowY: "auto",
+                  }}
+                >
+                  {resultadosPaciente.map((p) => (
+                    <button
+                      key={p.hc}
+                      type="button"
+                      onClick={() => seleccionarPaciente(p)}
+                      style={{
+                        width: "100%",
+                        display: "block",
+                        textAlign: "left",
+                        padding: "11px 12px",
+                        border: "none",
+                        borderBottom: "1px solid var(--border)",
+                        background: "#fff",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          fontSize: 13,
+                        }}
+                      >
+                        {p.nombres} {p.apellidoPaterno}{" "}
+                        {p.apellidoMaterno ?? ""}
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 3,
+                          fontSize: 12,
+                          color: "var(--muted)",
+                        }}
+                      >
+                        HC: {p.hc}
+                        {p.dni ? ` · DNI: ${p.dni}` : ""}
+                      </div>
+
+                      {p.sexo && (
+                        <div
+                          style={{
+                            marginTop: 2,
+                            fontSize: 12,
+                            color: "var(--muted)",
+                          }}
+                        >
+                          {p.sexo === "M"
+                            ? "Hombre"
+                            : p.sexo === "F"
+                              ? "Mujer"
+                              : p.sexo}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+            {!buscandoPaciente &&
+              pacienteAbierto &&
+              busquedaPaciente.trim().length >= 2 &&
+              resultadosPaciente.length === 0 && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 12,
+                    color: "var(--muted)",
+                  }}
+                >
+                  No se encontraron pacientes.
+                </div>
+              )}
+          </div>
 
           {pacienteEncontrado && (
             <div
@@ -979,7 +808,7 @@ manualmente.
             >
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
@@ -1010,161 +839,251 @@ manualmente.
               >
                 HC: {pacienteEncontrado.hc}
                 {pacienteEncontrado.sexo
-                  ? ` · ${
-                      pacienteEncontrado.sexo === "M"
-                        ? "Hombre"
-                        : "Mujer"
-                    }`
+                  ? ` · ${pacienteEncontrado.sexo === "M" ? "Hombre" : "Mujer"}`
                   : ""}
               </div>
             </div>
           )}
 
-          {!pacienteEncontrado &&
-            hc &&
-            !buscandoPaciente && (
-              <div style={{ marginTop: 18 }}>
-                <div
-                  style={{
-                    marginBottom: 14,
-                    padding: 12,
-                    borderRadius: 8,
-                    background: "var(--warning-light)",
-                    border: "1px solid #f3d69a",
-                    color: "#8a5b13",
-                    fontSize: 13,
-                  }}
-                >
-                  ⚠️ Paciente no encontrado.
-                  Completa los datos para registrarlo.
+          {!pacienteEncontrado && hc && !buscandoPaciente && (
+            <div style={{ marginTop: 18 }}>
+              <div
+                style={{
+                  marginBottom: 14,
+                  padding: 12,
+                  borderRadius: 8,
+                  background: "var(--warning-light)",
+                  border: "1px solid #f3d69a",
+                  color: "#8a5b13",
+                  fontSize: 13,
+                }}
+              >
+                ⚠️ Paciente no encontrado. Completa los datos para registrarlo.
+              </div>
+
+              <div className="form-grid-2">
+                <div className="form-field">
+                  <label className="form-label">DNI</label>
+
+                  <input
+                    type="text"
+                    value={dni}
+                    onChange={(e) => setDni(e.target.value)}
+                    className="form-input"
+                  />
                 </div>
 
-                <div className="form-grid-2">
-                  <div className="form-field">
-                    <label className="form-label">
-                      DNI
-                    </label>
+                <div className="form-field">
+                  <label className="form-label">Nombres</label>
 
-                    <input
-                      type="text"
-                      value={dni}
-                      onChange={(e) =>
-                        setDni(e.target.value)
-                      }
-                      className="form-input"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    value={nombres}
+                    onChange={(e) => setNombres(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
 
-                  <div className="form-field">
-                    <label className="form-label">
-                      Nombres
-                    </label>
+                <div className="form-field">
+                  <label className="form-label">Apellido paterno</label>
 
-                    <input
-                      type="text"
-                      value={nombres}
-                      onChange={(e) =>
-                        setNombres(e.target.value)
-                      }
-                      className="form-input"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    value={apellidoPaterno}
+                    onChange={(e) => setApellidoPaterno(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
 
-                  <div className="form-field">
-                    <label className="form-label">
-                      Apellido paterno
-                    </label>
+                <div className="form-field">
+                  <label className="form-label">Apellido materno</label>
 
-                    <input
-                      type="text"
-                      value={apellidoPaterno}
-                      onChange={(e) =>
-                        setApellidoPaterno(
-                          e.target.value,
-                        )
-                      }
-                      className="form-input"
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    value={apellidoMaterno}
+                    onChange={(e) => setApellidoMaterno(e.target.value)}
+                    className="form-input"
+                  />
+                </div>
 
-                  <div className="form-field">
-                    <label className="form-label">
-                      Apellido materno
-                    </label>
+                <div className="form-field">
+                  <label className="form-label">Sexo</label>
 
-                    <input
-                      type="text"
-                      value={apellidoMaterno}
-                      onChange={(e) =>
-                        setApellidoMaterno(
-                          e.target.value,
-                        )
-                      }
-                      className="form-input"
-                    />
-                  </div>
+                  <select
+                    value={sexo}
+                    onChange={(e) => setSexo(e.target.value as "M" | "F" | "")}
+                    className="form-select"
+                  >
+                    <option value="">Selecciona...</option>
 
-                  <div className="form-field">
-                    <label className="form-label">
-                      Sexo
-                    </label>
+                    <option value="M">Hombre</option>
 
-                    <select
-                      value={sexo}
-                      onChange={(e) =>
-                        setSexo(
-                          e.target.value as
-                            | "M"
-                            | "F"
-                            | "",
-                        )
-                      }
-                      className="form-select"
-                    >
-                      <option value="">
-                        Selecciona...
-                      </option>
+                    <option value="F">Mujer</option>
+                  </select>
+                </div>
 
-                      <option value="M">
-                        Hombre
-                      </option>
+                <div className="form-field">
+                  <label className="form-label">Fecha de nacimiento</label>
 
-                      <option value="F">
-                        Mujer
-                      </option>
-                    </select>
-                  </div>
-
-                  <div className="form-field">
-                    <label className="form-label">
-                      Fecha de nacimiento
-                    </label>
-
-                    <input
-                      type="date"
-                      value={fechaNacimiento}
-                      onChange={(e) =>
-                        setFechaNacimiento(
-                          e.target.value,
-                        )
-                      }
-                      className="form-input"
-                    />
-                  </div>
+                  <input
+                    type="date"
+                    value={fechaNacimiento}
+                    onChange={(e) => setFechaNacimiento(e.target.value)}
+                    className="form-input"
+                  />
                 </div>
               </div>
-            )}
+            </div>
+          )}
+        </section>
+
+        {/* 02 TIPO DE INGRESO */}
+        <section className="form-section">
+          <div className="form-section-title">02 · Ubicación hospitalaria</div>
+
+          <p className="form-section-description">
+            Selecciona dónde será hospitalizado el paciente.
+          </p>
+
+          <div className="form-field">
+            <label className="form-label">Servicio</label>
+
+            <select
+              value={servicioId}
+              onChange={(e) => {
+                setServicioId(e.target.value);
+                setEspecialidadId("");
+                setEspecialidades([]);
+                setCamas([]);
+                setCamaId("");
+              }}
+              className="form-select"
+            >
+              <option value="">Selecciona un servicio</option>
+
+              {servicios.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {servicioId && (
+            <div className="form-field">
+              <label className="form-label">Especialidad</label>
+
+              <select
+                value={especialidadId}
+                onChange={(e) => {
+                  setEspecialidadId(e.target.value);
+                  setCamas([]);
+                  setCamaId("");
+                }}
+                className="form-select"
+              >
+                <option value="">Selecciona una especialidad</option>
+
+                {especialidades.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {especialidadId && (
+            <div className="form-field">
+              <label className="form-label">Cama libre</label>
+
+              <select
+                value={camaId}
+                onChange={(e) => setCamaId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">
+                  {camas.length === 0
+                    ? "No hay camas libres"
+                    : "Selecciona una cama"}
+                </option>
+
+                {camas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Cama {c.numero}
+                    {c.ubicacion ? ` — ${c.ubicacion}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              {camas.length > 0 && (
+                <p
+                  style={{
+                    margin: "6px 0 0",
+                    fontSize: 12,
+                    color: "var(--success)",
+                  }}
+                >
+                  ● {camas.length} cama
+                  {camas.length !== 1 ? "s" : ""} disponible
+                  {camas.length !== 1 ? "s" : ""}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* 03 IDENTIFICACIÓN */}
+        <section className="form-section">
+          <div className="form-section-title">03 · Tipo de ingreso</div>
+
+          <p className="form-section-description">
+            Define cómo se produce el ingreso del paciente.
+          </p>
+
+          <div className="form-field">
+            <label className="form-label">Tipo de ingreso</label>
+
+            <select
+              value={tipoIngreso}
+              onChange={(e) =>
+                setTipoIngreso(e.target.value as "normal" | "transferencia")
+              }
+              className="form-select"
+            >
+              <option value="normal">Ingreso normal</option>
+
+              <option value="transferencia">Admitido por transferencia</option>
+            </select>
+          </div>
+
+          {tipoIngreso === "transferencia" && (
+            <div className="form-field">
+              <label className="form-label">Servicio de origen</label>
+
+              <select
+                value={servicioOrigenId}
+                onChange={(e) => setServicioOrigenId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Selecciona el servicio de origen</option>
+
+                {servicios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </section>
 
         {/* 04 INFORMACIÓN CLÍNICA */}
         <section className="form-section">
-          <div className="form-section-title">
-            04 · Información clínica
-          </div>
+          <div className="form-section-title">04 · Información clínica</div>
 
           <p className="form-section-description">
-            Registra los datos médicos y de
-            financiamiento del ingreso.
+            Registra los datos médicos y de financiamiento del ingreso.
           </p>
 
           <div className="form-grid-2">
@@ -1173,9 +1092,7 @@ manualmente.
               ref={medicoRef}
               style={{ position: "relative" }}
             >
-              <label className="form-label">
-                Médico tratante
-              </label>
+              <label className="form-label">Médico tratante</label>
 
               {medico ? (
                 <div>
@@ -1235,14 +1152,9 @@ manualmente.
                   <input
                     type="text"
                     value={busquedaMedico}
-                    onChange={(e) =>
-                      buscarMedicos(e.target.value)
-                    }
+                    onChange={(e) => buscarMedicos(e.target.value)}
                     onFocus={() => {
-                      if (
-                        busquedaMedico.trim().length >=
-                        2
-                      ) {
+                      if (busquedaMedico.trim().length >= 2) {
                         setMedicoAbierto(true);
                       }
                     }}
@@ -1251,18 +1163,17 @@ manualmente.
                     autoComplete="off"
                   />
 
-                  {buscandoMedico &&
-                    medicoAbierto && (
-                      <div
-                        style={{
-                          marginTop: 6,
-                          fontSize: 12,
-                          color: "var(--muted)",
-                        }}
-                      >
-                        Buscando médicos...
-                      </div>
-                    )}
+                  {buscandoMedico && medicoAbierto && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 12,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      Buscando médicos...
+                    </div>
+                  )}
 
                   {!buscandoMedico &&
                     medicoAbierto &&
@@ -1276,11 +1187,9 @@ manualmente.
                           top: "100%",
                           marginTop: 4,
                           background: "#fff",
-                          border:
-                            "1px solid var(--border)",
+                          border: "1px solid var(--border)",
                           borderRadius: 8,
-                          boxShadow:
-                            "0 8px 24px rgba(0,0,0,0.12)",
+                          boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
                           maxHeight: 280,
                           overflowY: "auto",
                         }}
@@ -1289,17 +1198,14 @@ manualmente.
                           <button
                             key={m.id}
                             type="button"
-                            onClick={() =>
-                              seleccionarMedico(m)
-                            }
+                            onClick={() => seleccionarMedico(m)}
                             style={{
                               width: "100%",
                               display: "block",
                               textAlign: "left",
                               padding: "11px 12px",
                               border: "none",
-                              borderBottom:
-                                "1px solid var(--border)",
+                              borderBottom: "1px solid var(--border)",
                               background: "#fff",
                               cursor: "pointer",
                             }}
@@ -1310,8 +1216,7 @@ manualmente.
                                 fontSize: 13,
                               }}
                             >
-                              {m.nombres}{" "}
-                              {m.apellidoPaterno}{" "}
+                              {m.nombres} {m.apellidoPaterno}{" "}
                               {m.apellidoMaterno ?? ""}
                             </div>
 
@@ -1322,14 +1227,13 @@ manualmente.
                                 color: "var(--muted)",
                               }}
                             >
-                              {m.especialidad} ·{" "}
-                              {m.servicio}
+                              {m.especialidad} · {m.servicio}
                             </div>
 
                             <div
                               style={{
                                 marginTop: 2,
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: "var(--muted)",
                               }}
                             >
@@ -1359,20 +1263,14 @@ manualmente.
             </div>
 
             <div className="form-field">
-              <label className="form-label">
-                Financiamiento
-              </label>
+              <label className="form-label">Financiamiento</label>
 
               <select
                 value={financiamiento}
-                onChange={(e) =>
-                  setFinanciamiento(e.target.value)
-                }
+                onChange={(e) => setFinanciamiento(e.target.value)}
                 className="form-select"
               >
-                <option value="">
-                  Selecciona...
-                </option>
+                <option value="">Selecciona...</option>
 
                 {FINANCIAMIENTOS.map((f) => (
                   <option key={f} value={f}>
@@ -1384,15 +1282,12 @@ manualmente.
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <div className="form-label">
-              Soporte y condiciones especiales
-            </div>
+            <div className="form-label">Soporte y condiciones especiales</div>
 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fit, minmax(220px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
                 gap: 10,
               }}
             >
@@ -1412,13 +1307,8 @@ manualmente.
                 <input
                   type="checkbox"
                   checked={usaVentilador}
-                  onChange={(e) =>
-                    setUsaVentilador(
-                      e.target.checked,
-                    )
-                  }
+                  onChange={(e) => setUsaVentilador(e.target.checked)}
                 />
-
                 Usa ventilador mecánico
               </label>
 
@@ -1438,13 +1328,8 @@ manualmente.
                 <input
                   type="checkbox"
                   checked={usaOxigeno}
-                  onChange={(e) =>
-                    setUsaOxigeno(
-                      e.target.checked,
-                    )
-                  }
+                  onChange={(e) => setUsaOxigeno(e.target.checked)}
                 />
-
                 Usa oxígeno
               </label>
             </div>
@@ -1453,14 +1338,11 @@ manualmente.
 
         {/* 05 DIAGNÓSTICOS */}
         <section className="form-section">
-          <div className="form-section-title">
-            05 · Diagnósticos
-          </div>
+          <div className="form-section-title">05 · Diagnósticos</div>
 
           <p className="form-section-description">
-            Busca el diagnóstico por código CIE-10 o por
-            descripción. Selecciona uno de los resultados
-            para registrarlo.
+            Busca el diagnóstico por código CIE-10 o por descripción. Selecciona
+            uno de los resultados para registrarlo.
           </p>
 
           <div
@@ -1470,17 +1352,13 @@ manualmente.
             }}
           >
             {diagnosticos.map((d, i) => {
-              const resultados =
-                resultadosDiagnostico[i] ?? [];
+              const resultados = resultadosDiagnostico[i] ?? [];
 
-              const buscando =
-                buscandoDiagnostico[i] ?? false;
+              const buscando = buscandoDiagnostico[i] ?? false;
 
-              const busqueda =
-                busquedaDiagnostico[i] ?? "";
+              const busqueda = busquedaDiagnostico[i] ?? "";
 
-              const desplegableAbierto =
-                diagnosticoAbierto === i;
+              const desplegableAbierto = diagnosticoAbierto === i;
 
               return (
                 <div
@@ -1488,8 +1366,7 @@ manualmente.
                   style={{
                     position: "relative",
                     padding: 14,
-                    border:
-                      "1px solid var(--border)",
+                    border: "1px solid var(--border)",
                     borderRadius: 10,
                     background: "#fafbfd",
                   }}
@@ -1510,16 +1387,12 @@ manualmente.
                       }}
                     >
                       DIAGNÓSTICO {i + 1}
-                      {i === 0
-                        ? " · PRINCIPAL"
-                        : ""}
+                      {i === 0 ? " · PRINCIPAL" : ""}
                     </div>
 
                     {diagnosticos.length > 1 && (
                       <button
-                        onClick={() =>
-                          quitarDiagnostico(i)
-                        }
+                        onClick={() => quitarDiagnostico(i)}
                         type="button"
                         className="btn btn-secondary"
                         style={{
@@ -1534,12 +1407,10 @@ manualmente.
                     )}
                   </div>
 
-                  {!d.cie10Codigo &&
-                  !d.cie10Descripcion ? (
+                  {!d.cie10Codigo && !d.cie10Descripcion ? (
                     <div
                       ref={(element) => {
-                        diagnosticoRefs.current[i] =
-                          element;
+                        diagnosticoRefs.current[i] = element;
                       }}
                       style={{
                         position: "relative",
@@ -1550,35 +1421,26 @@ manualmente.
                         placeholder="Buscar por código o descripción..."
                         value={busqueda}
                         onFocus={() => {
-                          if (
-                            busqueda.trim().length >=
-                            2
-                          ) {
+                          if (busqueda.trim().length >= 2) {
                             setDiagnosticoAbierto(i);
                           }
                         }}
-                        onChange={(e) =>
-                          buscarDiagnosticos(
-                            i,
-                            e.target.value,
-                          )
-                        }
+                        onChange={(e) => buscarDiagnosticos(i, e.target.value)}
                         className="form-input"
                         autoComplete="off"
                       />
 
-                      {buscando &&
-                        desplegableAbierto && (
-                          <div
-                            style={{
-                              marginTop: 6,
-                              fontSize: 12,
-                              color: "var(--muted)",
-                            }}
-                          >
-                            Buscando diagnósticos...
-                          </div>
-                        )}
+                      {buscando && desplegableAbierto && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: 12,
+                            color: "var(--muted)",
+                          }}
+                        >
+                          Buscando diagnósticos...
+                        </div>
+                      )}
 
                       {!buscando &&
                         desplegableAbierto &&
@@ -1592,67 +1454,51 @@ manualmente.
                               top: "100%",
                               marginTop: 4,
                               background: "#fff",
-                              border:
-                                "1px solid var(--border)",
+                              border: "1px solid var(--border)",
                               borderRadius: 8,
-                              boxShadow:
-                                "0 8px 24px rgba(0,0,0,0.12)",
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
                               maxHeight: 260,
                               overflowY: "auto",
                             }}
                           >
-                            {resultados.map(
-                              (resultado) => (
-                                <button
-                                  key={
-                                    resultado.id
-                                  }
-                                  type="button"
-                                  onClick={() =>
-                                    seleccionarDiagnostico(
-                                      i,
-                                      resultado,
-                                    )
-                                  }
+                            {resultados.map((resultado) => (
+                              <button
+                                key={resultado.id}
+                                type="button"
+                                onClick={() =>
+                                  seleccionarDiagnostico(i, resultado)
+                                }
+                                style={{
+                                  width: "100%",
+                                  display: "block",
+                                  textAlign: "left",
+                                  padding: "10px 12px",
+                                  border: "none",
+                                  borderBottom: "1px solid var(--border)",
+                                  background: "#fff",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <div
                                   style={{
-                                    width: "100%",
-                                    display: "block",
-                                    textAlign: "left",
-                                    padding:
-                                      "10px 12px",
-                                    border: "none",
-                                    borderBottom:
-                                      "1px solid var(--border)",
-                                    background: "#fff",
-                                    cursor: "pointer",
+                                    fontWeight: 700,
+                                    fontSize: 13,
                                   }}
                                 >
-                                  <div
-                                    style={{
-                                      fontWeight: 700,
-                                      fontSize: 13,
-                                    }}
-                                  >
-                                    {
-                                      resultado.codigo
-                                    }
-                                  </div>
+                                  {resultado.codigo}
+                                </div>
 
-                                  <div
-                                    style={{
-                                      marginTop: 2,
-                                      fontSize: 12,
-                                      color:
-                                        "var(--muted)",
-                                    }}
-                                  >
-                                    {
-                                      resultado.descripcion
-                                    }
-                                  </div>
-                                </button>
-                              ),
-                            )}
+                                <div
+                                  style={{
+                                    marginTop: 2,
+                                    fontSize: 12,
+                                    color: "var(--muted)",
+                                  }}
+                                >
+                                  {resultado.descripcion}
+                                </div>
+                              </button>
+                            ))}
                           </div>
                         )}
 
@@ -1675,8 +1521,7 @@ manualmente.
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns:
-                          "110px minmax(0, 1fr)",
+                        gridTemplateColumns: "110px minmax(0, 1fr)",
                         gap: 10,
                         alignItems: "center",
                       }}
@@ -1685,10 +1530,8 @@ manualmente.
                         style={{
                           padding: "10px 12px",
                           borderRadius: 7,
-                          background:
-                            "var(--success-light)",
-                          border:
-                            "1px solid #b8e2d0",
+                          background: "var(--success-light)",
+                          border: "1px solid #b8e2d0",
                           fontWeight: 700,
                           fontSize: 13,
                           color: "var(--success)",
@@ -1702,8 +1545,7 @@ manualmente.
                           padding: "10px 12px",
                           borderRadius: 7,
                           background: "#fff",
-                          border:
-                            "1px solid var(--border)",
+                          border: "1px solid var(--border)",
                           fontSize: 13,
                         }}
                       >
@@ -1713,31 +1555,19 @@ manualmente.
                       <button
                         type="button"
                         onClick={() => {
-                          actualizarDiagnostico(
-                            i,
-                            "cie10Codigo",
-                            "",
-                          );
+                          actualizarDiagnostico(i, "cie10Codigo", "");
 
-                          actualizarDiagnostico(
-                            i,
-                            "cie10Descripcion",
-                            "",
-                          );
+                          actualizarDiagnostico(i, "cie10Descripcion", "");
 
-                          setBusquedaDiagnostico(
-                            (prev) => ({
-                              ...prev,
-                              [i]: "",
-                            }),
-                          );
+                          setBusquedaDiagnostico((prev) => ({
+                            ...prev,
+                            [i]: "",
+                          }));
 
-                          setResultadosDiagnostico(
-                            (prev) => ({
-                              ...prev,
-                              [i]: [],
-                            }),
-                          );
+                          setResultadosDiagnostico((prev) => ({
+                            ...prev,
+                            [i]: [],
+                          }));
 
                           setDiagnosticoAbierto(null);
                         }}
@@ -1771,20 +1601,17 @@ manualmente.
 
         {/* 06 ESTANCIA */}
         <section className="form-section">
-          <div className="form-section-title">
-            06 · Estancia prolongada
-          </div>
+          <div className="form-section-title">06 · Estancia prolongada</div>
 
           <p className="form-section-description">
-            Información opcional asociada a situaciones
-            que puedan prolongar la estancia hospitalaria.
+            Información opcional asociada a situaciones que puedan prolongar la
+            estancia hospitalaria.
           </p>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns:
-                "repeat(2, minmax(0, 1fr))",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
               gap: 12,
             }}
           >
@@ -1806,11 +1633,7 @@ manualmente.
               <input
                 type="checkbox"
                 checked={tieneProblemaJudicial}
-                onChange={(e) =>
-                  setTieneProblemaJudicial(
-                    e.target.checked,
-                  )
-                }
+                onChange={(e) => setTieneProblemaJudicial(e.target.checked)}
                 style={{
                   width: 16,
                   height: 16,
@@ -1840,11 +1663,7 @@ manualmente.
               <input
                 type="checkbox"
                 checked={tieneProblemaSocial}
-                onChange={(e) =>
-                  setTieneProblemaSocial(
-                    e.target.checked,
-                  )
-                }
+                onChange={(e) => setTieneProblemaSocial(e.target.checked)}
                 style={{
                   width: 16,
                   height: 16,
@@ -1865,7 +1684,6 @@ manualmente.
           >
             <label className="form-label">
               Notas adicionales
-
               <span
                 style={{
                   marginLeft: 6,
@@ -1880,9 +1698,7 @@ manualmente.
             <textarea
               placeholder="Ingresa cualquier observación relevante..."
               value={notasEstancia}
-              onChange={(e) =>
-                setNotasEstancia(e.target.value)
-              }
+              onChange={(e) => setNotasEstancia(e.target.value)}
               className="form-textarea"
               rows={4}
               style={{
@@ -1897,33 +1713,69 @@ manualmente.
         {/* CONFIRMACIÓN */}
         <section className="form-section">
           <div className="form-section-title">
-            Confirmación del ingreso
+            07 · Confirmación del ingreso
           </div>
 
           <p className="form-section-description">
-            Verifica que la información requerida esté
-            completa antes de registrar el ingreso.
+            Verifica que la información requerida esté completa antes de
+            registrar el ingreso.
           </p>
 
+          <div className="form-field">
+            <label htmlFor="fechaIngreso" className="form-label">
+              Fecha y hora real de ingreso (Perú)
+            </label>
+            <input
+              id="fechaIngreso"
+              type="datetime-local"
+              className="form-input"
+              value={fechaIngreso}
+              max={fechaLocalInput()}
+              onChange={(e) => setFechaIngreso(e.target.value)}
+              required
+            />
+          </div>
+          <div className="review-summary">
+            <p>
+              <strong>Paciente:</strong>{" "}
+              {[nombres, apellidoPaterno, apellidoMaterno]
+                .filter(Boolean)
+                .join(" ") || "Pendiente"}{" "}
+              · HC {hc || "—"}
+            </p>
+            <p>
+              <strong>Ubicación:</strong>{" "}
+              {servicios.find((x) => String(x.id) === servicioId)?.nombre ||
+                "—"}{" "}
+              /{" "}
+              {especialidades.find((x) => String(x.id) === especialidadId)
+                ?.nombre || "—"}{" "}
+              / cama {camas.find((x) => String(x.id) === camaId)?.numero || "—"}
+            </p>
+            <p>
+              <strong>Médico:</strong> {medico || "Pendiente"}
+            </p>
+            <p>
+              <strong>Diagnósticos:</strong>{" "}
+              {diagnosticos
+                .filter((d) => d.cie10Descripcion.trim())
+                .map((d) => d.cie10Descripcion)
+                .join("; ") || "Pendiente"}
+            </p>
+          </div>
           <div
             style={{
               padding: 15,
               borderRadius: 10,
-              background: listo
-                ? "var(--success-light)"
-                : "#f5f7fa",
-              border: listo
-                ? "1px solid #b8e2d0"
-                : "1px solid var(--border)",
+              background: listo ? "var(--success-light)" : "#f5f7fa",
+              border: listo ? "1px solid #b8e2d0" : "1px solid var(--border)",
             }}
           >
             <div
               style={{
                 fontSize: 13,
                 fontWeight: 700,
-                color: listo
-                  ? "var(--success)"
-                  : "var(--muted)",
+                color: listo ? "var(--success)" : "var(--muted)",
               }}
             >
               {listo
@@ -1938,9 +1790,8 @@ manualmente.
                 color: "var(--muted)",
               }}
             >
-              Se requiere servicio, especialidad,
-              cama, identificación del paciente y
-              diagnóstico.
+              Se requiere servicio, especialidad, cama, identificación del
+              paciente y diagnóstico.
             </div>
           </div>
 
@@ -1953,16 +1804,14 @@ manualmente.
           >
             <button
               onClick={registrarIngreso}
-              disabled={!listo || enviando}
+              disabled={!listo || !fechaIngreso || enviando}
               className="btn btn-primary"
               style={{
                 minWidth: 210,
                 minHeight: 44,
               }}
             >
-              {enviando
-                ? "Guardando..."
-                : "✓ Registrar ingreso"}
+              {enviando ? "Guardando..." : "✓ Registrar ingreso"}
             </button>
           </div>
         </section>
@@ -1974,9 +1823,7 @@ manualmente.
               background: mensaje.startsWith("✅")
                 ? "var(--success-light)"
                 : "var(--danger-light)",
-              borderColor: mensaje.startsWith("✅")
-                ? "#b8e2d0"
-                : "#efc2c2",
+              borderColor: mensaje.startsWith("✅") ? "#b8e2d0" : "#efc2c2",
             }}
           >
             {mensaje}

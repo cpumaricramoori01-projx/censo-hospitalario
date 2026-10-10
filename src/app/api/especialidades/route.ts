@@ -1,168 +1,100 @@
+import { jsonObject } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { especialidades } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
-
+import {
+  especialidades,
+  servicios,
+  camas,
+  ocupacionesActivas,
+} from "@/db/schema";
+import { requireUser, requireWrite } from "@/lib/auth";
+import { fallo, identificador, texto, HttpError } from "@/lib/validation";
 export async function GET(request: NextRequest) {
   try {
-    const servicioId = request.nextUrl.searchParams.get(
-      "servicioId"
+    await requireUser();
+    const servicioId = identificador(
+      request.nextUrl.searchParams.get("servicioId"),
     );
-
-    if (!servicioId) {
-      return NextResponse.json(
-        { error: "Falta el parametro servicioId" },
-        { status: 400 }
-      );
-    }
-
-    const data = await db
-      .select()
-      .from(especialidades)
-      .where(
-        eq(
-          especialidades.servicioId,
-          Number(servicioId)
-        )
-      );
-
-    return NextResponse.json(data);
-  } catch (err) {
-    console.error(err);
-
     return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
+      await db
+        .select()
+        .from(especialidades)
+        .where(eq(especialidades.servicioId, servicioId))
+        .orderBy(especialidades.nombre),
     );
+  } catch (e) {
+    return fallo(e);
   }
 }
-
-export async function POST(request: NextRequest) {
+async function guardar(request: Request, editar: boolean) {
   try {
-    const body = await request.json();
-
-    const nombre = String(body.nombre ?? "").trim();
-    const servicioId = Number(body.servicioId);
-
-    if (!nombre || !servicioId) {
-      return NextResponse.json(
-        {
-          error:
-            "Nombre y servicio son obligatorios",
-        },
-        { status: 400 }
-      );
-    }
-
-    const existente = await db
-      .select()
-      .from(especialidades)
-      .where(
-        and(
-          eq(especialidades.nombre, nombre),
-          eq(especialidades.servicioId, servicioId)
+    await requireWrite(true);
+    const b = await jsonObject(request);
+    const nombre = texto(b.nombre, "Especialidad", 80);
+    const servicioId = identificador(b.servicioId, "Servicio");
+    const result = await db.transaction(async (tx) => {
+      const [service] = await tx
+        .select()
+        .from(servicios)
+        .where(eq(servicios.id, servicioId))
+        .for("update");
+      if (!service) throw new HttpError("Servicio no encontrado", 404);
+      const id = editar ? identificador(b.id) : null;
+      const [duplicate] = await tx
+        .select()
+        .from(especialidades)
+        .where(
+          and(
+            eq(especialidades.servicioId, servicioId),
+            eq(especialidades.nombre, nombre),
+            ...(id ? [ne(especialidades.id, id)] : []),
+          ),
         )
-      );
-
-    if (existente.length > 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Ya existe esa especialidad en el servicio seleccionado",
-        },
-        { status: 409 }
-      );
-    }
-
-    const result = await db
-      .insert(especialidades)
-      .values({
-        nombre,
-        servicioId,
-      });
-
-    return NextResponse.json(
-      {
-        id: result[0].insertId,
-        nombre,
-        servicioId,
-      },
-      { status: 201 }
-    );
-  } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json();
-
-    const id = Number(body.id);
-    const nombre = String(body.nombre ?? "").trim();
-    const servicioId = Number(body.servicioId);
-
-    if (!id || !nombre || !servicioId) {
-      return NextResponse.json(
-        {
-          error:
-            "ID, nombre y servicio son obligatorios",
-        },
-        { status: 400 }
-      );
-    }
-
-    const existente = await db
-      .select()
-      .from(especialidades)
-      .where(eq(especialidades.id, id));
-
-    if (existente.length === 0) {
-      return NextResponse.json(
-        { error: "Especialidad no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    await db
-      .update(especialidades)
-      .set({
-        nombre,
-        servicioId,
-      })
-      .where(eq(especialidades.id, id));
-
-    return NextResponse.json({
-      id,
-      nombre,
-      servicioId,
+        .for("update");
+      if (duplicate)
+        throw new HttpError("Ya existe esa especialidad en este servicio", 409);
+      if (!id) {
+        const res = await tx
+          .insert(especialidades)
+          .values({ nombre, servicioId });
+        return { id: res[0].insertId, nombre, servicioId };
+      }
+      const [actual] = await tx
+        .select()
+        .from(especialidades)
+        .where(eq(especialidades.id, id))
+        .for("update");
+      if (!actual) throw new HttpError("Especialidad no encontrada", 404);
+      if (actual.servicioId !== servicioId) {
+        const active = await tx
+          .select({ id: camas.id })
+          .from(camas)
+          .innerJoin(
+            ocupacionesActivas,
+            eq(ocupacionesActivas.camaId, camas.id),
+          )
+          .where(eq(camas.especialidadId, id));
+        if (active.length)
+          throw new HttpError(
+            "Esta especialidad tiene pacientes hospitalizados. Trasládalos antes de cambiarla de servicio",
+            409,
+          );
+      }
+      await tx
+        .update(especialidades)
+        .set({ nombre, servicioId })
+        .where(eq(especialidades.id, id));
+      return { id, nombre, servicioId };
     });
-  } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json(result, { status: editar ? 200 : 201 });
+  } catch (e) {
+    return fallo(e);
   }
+}
+export async function POST(request: Request) {
+  return guardar(request, false);
+}
+export async function PATCH(request: Request) {
+  return guardar(request, true);
 }

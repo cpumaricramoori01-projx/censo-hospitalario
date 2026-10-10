@@ -3,6 +3,7 @@
 "use client";
 
 import Link from "next/link";
+import { fechaLocalInput } from "@/lib/hospital";
 import { useEffect, useRef, useState } from "react";
 
 type IngresoActivo = {
@@ -41,7 +42,7 @@ const TIPOS_EGRESO = [
   { value: "alta_medica", label: "Alta médica" },
   { value: "alta_voluntaria", label: "Alta voluntaria" },
   { value: "fallecido", label: "Fallecido" },
-  { value: "transferencia", label: "Transferencia" },
+
   { value: "retiro", label: "Retiro" },
   { value: "otro", label: "Otro" },
 ];
@@ -60,7 +61,9 @@ export default function NuevoEgresoPage() {
   const [busquedaMedico, setBusquedaMedico] = useState("");
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [buscandoMedicos, setBuscandoMedicos] = useState(false);
-  const [medicoSeleccionado, setMedicoSeleccionado] = useState<Medico | null>(null);
+  const [medicoSeleccionado, setMedicoSeleccionado] = useState<Medico | null>(
+    null,
+  );
   const [medicoAbierto, setMedicoAbierto] = useState(false);
   const medicoRef = useRef<HTMLDivElement | null>(null);
 
@@ -68,10 +71,16 @@ export default function NuevoEgresoPage() {
   const [busquedaDiagnostico, setBusquedaDiagnostico] = useState("");
   const [diagnosticos, setDiagnosticos] = useState<Diagnostico[]>([]);
   const [buscandoDiagnosticos, setBuscandoDiagnosticos] = useState(false);
-  const [diagnosticoSeleccionado, setDiagnosticoSeleccionado] = useState<Diagnostico | null>(null);
+  const [diagnosticoSeleccionado, setDiagnosticoSeleccionado] =
+    useState<Diagnostico | null>(null);
   const [diagnosticoAbierto, setDiagnosticoAbierto] = useState(false);
   const diagnosticoRef = useRef<HTMLDivElement | null>(null);
 
+  const [fechaEgreso, setFechaEgreso] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setFechaEgreso(fechaLocalInput()), 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [notas, setNotas] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -86,9 +95,6 @@ export default function NuevoEgresoPage() {
   useEffect(() => {
     const termino = busqueda.trim();
     if (termino.length < 2) {
-      setResultados([]);
-      setSeleccionado(null);
-      setBuscando(false);
       return;
     }
 
@@ -98,11 +104,18 @@ export default function NuevoEgresoPage() {
       setSeleccionado(null);
       setMensaje(null);
       try {
-        const res = await fetch(`/api/ingresos/activos?q=${encodeURIComponent(termino)}`, { signal: controlador.signal });
-        if (!res.ok) throw new Error("No se pudo consultar las hospitalizaciones activas");
+        const res = await fetch(
+          `/api/ingresos/activos?q=${encodeURIComponent(termino)}`,
+          { signal: controlador.signal },
+        );
+        if (!res.ok)
+          throw new Error("No se pudo consultar las hospitalizaciones activas");
         const data = await res.json();
         setResultados(data);
-        if (data.length === 0) setMensaje("⚠️ No se encontró ninguna hospitalización activa con ese dato");
+        if (data.length === 0)
+          setMensaje(
+            "⚠️ No se encontró ninguna hospitalización activa con ese dato",
+          );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         console.error(err);
@@ -123,8 +136,6 @@ export default function NuevoEgresoPage() {
     const termino = busquedaMedico.trim();
 
     if (termino.length < 2) {
-      setMedicos([]);
-      setBuscandoMedicos(false);
       return;
     }
 
@@ -136,7 +147,7 @@ export default function NuevoEgresoPage() {
       try {
         const res = await fetch(
           `/api/medicos?q=${encodeURIComponent(termino)}`,
-          { signal: controlador.signal }
+          { signal: controlador.signal },
         );
 
         if (!res.ok) {
@@ -183,8 +194,6 @@ export default function NuevoEgresoPage() {
     const termino = busquedaDiagnostico.trim();
 
     if (termino.length < 2) {
-      setDiagnosticos([]);
-      setBuscandoDiagnosticos(false);
       return;
     }
 
@@ -195,7 +204,7 @@ export default function NuevoEgresoPage() {
       try {
         const res = await fetch(
           `/api/diagnosticos?q=${encodeURIComponent(termino)}`,
-          { signal: controlador.signal }
+          { signal: controlador.signal },
         );
 
         if (!res.ok) {
@@ -238,13 +247,39 @@ export default function NuevoEgresoPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("ingresoId");
+    if (!id) return;
+    fetch(`/api/hospitalizaciones/${id}`)
+      .then(async (r) => {
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data.egreso) return;
+        const u = data.ubicaciones.at(-1);
+        setSeleccionado({
+          ingresoId: data.ingreso.id,
+          hc: data.paciente.hc,
+          dni: data.paciente.dni,
+          camaId: data.ingreso.camaId,
+          fechaIngreso: data.ingreso.fechaIngreso,
+          nombres: data.paciente.nombres,
+          apellidoPaterno: data.paciente.apellidoPaterno,
+          apellidoMaterno: data.paciente.apellidoMaterno,
+          numeroCama: u?.cama ?? "",
+          especialidadNombre: u?.especialidad ?? "",
+          servicioNombre: u?.servicio ?? "",
+        });
+      })
+      .catch(() => setMensaje("No se pudo cargar la hospitalización"));
+  }, []);
   function seleccionarPaciente(ingreso: IngresoActivo) {
     setSeleccionado(ingreso);
     setMensaje(null);
   }
 
   function seleccionarMedico(medico: Medico) {
-    const nombre = `${medico.nombres} ${medico.apellidoPaterno} ${medico.apellidoMaterno ?? ""}`.trim();
+    const nombre =
+      `${medico.nombres} ${medico.apellidoPaterno} ${medico.apellidoMaterno ?? ""}`.trim();
 
     setMedicoAlta(nombre);
     setMedicoSeleccionado(medico);
@@ -277,8 +312,12 @@ export default function NuevoEgresoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ingresoId: seleccionado.ingresoId,
+          fechaEgreso,
+          medicoAltaId: medicoSeleccionado?.id,
           tipoEgreso,
-          servicioDestinoId: servicioDestinoId ? Number(servicioDestinoId) : undefined,
+          servicioDestinoId: servicioDestinoId
+            ? Number(servicioDestinoId)
+            : undefined,
           medicoAlta: medicoAlta || undefined,
           diagnosticoFinal: diagnosticoFinal || undefined,
           notas: notas.trim() || undefined,
@@ -287,8 +326,11 @@ export default function NuevoEgresoPage() {
 
       const data = await res.json();
       if (res.ok) {
-        setMensaje(`✅ Egreso registrado correctamente (id ${data.id}). La cama quedó libre.`);
         limpiarBusqueda();
+        setFechaEgreso(fechaLocalInput());
+        setMensaje(
+          `✅ Egreso registrado correctamente (id ${data.id}). La cama quedó libre.`,
+        );
         setTipoEgreso("");
         setServicioDestinoId("");
         setMedicoAlta("");
@@ -308,10 +350,12 @@ export default function NuevoEgresoPage() {
     }
   }
 
-  const transferenciaValida = tipoEgreso !== "transferencia" || !!servicioDestinoId;
+  const transferenciaValida =
+    tipoEgreso !== "transferencia" || !!servicioDestinoId;
   const listo =
     !!seleccionado &&
     !!tipoEgreso &&
+    !!fechaEgreso &&
     !!medicoSeleccionado &&
     !!diagnosticoSeleccionado &&
     transferenciaValida;
@@ -322,49 +366,207 @@ export default function NuevoEgresoPage() {
         <div>
           <p className="page-kicker">Gestión de altas</p>
           <h1>Registrar egreso</h1>
-          <p>Registra la salida del paciente y actualiza automáticamente la disponibilidad de su cama.</p>
+          <p>
+            Registra la salida del paciente y actualiza automáticamente la
+            disponibilidad de su cama.
+          </p>
         </div>
-        <Link href="/panel" className="page-heading-action">← Volver al panel</Link>
+        <Link href="/panel" className="page-heading-action">
+          ← Volver al panel
+        </Link>
       </header>
 
       <div className="form-card">
         <section className="form-section">
           <div className="form-section-title">01 · Buscar paciente</div>
-          <p className="form-section-description">Busca una hospitalización activa por historia clínica, DNI, nombres o apellidos.</p>
+          <p className="form-section-description">
+            Busca una hospitalización activa por historia clínica, DNI, nombres
+            o apellidos.
+          </p>
           <div className="form-field">
             <label className="form-label">Paciente hospitalizado</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10 }}>
-              <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="HC, DNI, nombres o apellidos..." className="form-input" />
-              <button type="button" onClick={limpiarBusqueda} disabled={!busqueda && !seleccionado} className="btn btn-secondary">Limpiar</button>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 10,
+              }}
+            >
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => {
+                  setBusqueda(e.target.value);
+                  setSeleccionado(null);
+                  setResultados([]);
+                  setBuscando(false);
+                }}
+                placeholder="HC, DNI, nombres o apellidos..."
+                className="form-input"
+              />
+              <button
+                type="button"
+                onClick={limpiarBusqueda}
+                disabled={!busqueda && !seleccionado}
+                className="btn btn-secondary"
+              >
+                Limpiar
+              </button>
             </div>
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--muted)" }}>La búsqueda se realiza automáticamente desde 2 caracteres y solo muestra pacientes con hospitalización activa.</p>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--muted)" }}>
+            La búsqueda se realiza automáticamente desde 2 caracteres y solo
+            muestra pacientes con hospitalización activa.
+          </p>
         </section>
 
-        {buscando && <section className="form-section"><p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>Buscando hospitalizaciones activas...</p></section>}
+        {buscando && (
+          <section className="form-section">
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
+              Buscando hospitalizaciones activas...
+            </p>
+          </section>
+        )}
 
         {resultados.length > 0 && (
           <section className="form-section">
-            <div className="form-section-title">02 · Hospitalizaciones encontradas</div>
-            <p className="form-section-description">Selecciona la estancia hospitalaria correspondiente.</p>
+            <div className="form-section-title">
+              02 · Hospitalizaciones encontradas
+            </div>
+            <p className="form-section-description">
+              Selecciona la estancia hospitalaria correspondiente.
+            </p>
             <div style={{ display: "grid", gap: 10 }}>
               {resultados.map((r) => {
-                const estaSeleccionado = seleccionado?.ingresoId === r.ingresoId;
+                const estaSeleccionado =
+                  seleccionado?.ingresoId === r.ingresoId;
                 return (
-                  <button key={r.ingresoId} type="button" onClick={() => seleccionarPaciente(r)} style={{ width: "100%", textAlign: "left", cursor: "pointer", border: estaSeleccionado ? "2px solid var(--success)" : "1px solid var(--border)", borderRadius: 10, padding: 16, background: estaSeleccionado ? "var(--success-light)" : "white", boxShadow: estaSeleccionado ? "0 0 0 3px rgba(22,128,91,0.08)" : "var(--shadow-sm)" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+                  <button
+                    key={r.ingresoId}
+                    type="button"
+                    onClick={() => seleccionarPaciente(r)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      border: estaSeleccionado
+                        ? "2px solid var(--success)"
+                        : "1px solid var(--border)",
+                      borderRadius: 10,
+                      padding: 16,
+                      background: estaSeleccionado
+                        ? "var(--success-light)"
+                        : "white",
+                      boxShadow: estaSeleccionado
+                        ? "0 0 0 3px rgba(22,128,91,0.08)"
+                        : "var(--shadow-sm)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 16,
+                      }}
+                    >
                       <div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>{r.nombres} {r.apellidoPaterno} {r.apellidoMaterno ?? ""}</div>
-                        <div style={{ marginTop: 6, fontSize: 13, color: "var(--muted)" }}>HC: <strong>{r.hc}</strong>{r.dni ? <> · DNI: <strong>{r.dni}</strong></> : null}</div>
+                        <div
+                          style={{
+                            fontSize: 16,
+                            fontWeight: 700,
+                            color: "var(--foreground)",
+                          }}
+                        >
+                          {r.nombres} {r.apellidoPaterno}{" "}
+                          {r.apellidoMaterno ?? ""}
+                        </div>
+                        <div
+                          style={{
+                            marginTop: 6,
+                            fontSize: 13,
+                            color: "var(--muted)",
+                          }}
+                        >
+                          HC: <strong>{r.hc}</strong>
+                          {r.dni ? (
+                            <>
+                              {" "}
+                              · DNI: <strong>{r.dni}</strong>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
-                      <div style={{ padding: "5px 9px", borderRadius: 999, background: estaSeleccionado ? "#d5f1e3" : "#eef2f6", color: estaSeleccionado ? "var(--success)" : "#536171", fontSize: 11, fontWeight: 700 }}>{estaSeleccionado ? "SELECCIONADO" : "ACTIVO"}</div>
+                      <div
+                        style={{
+                          padding: "5px 9px",
+                          borderRadius: 999,
+                          background: estaSeleccionado ? "#d5f1e3" : "#eef2f6",
+                          color: estaSeleccionado
+                            ? "var(--success)"
+                            : "#536171",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {estaSeleccionado ? "SELECCIONADO" : "ACTIVO"}
+                      </div>
                     </div>
-                    <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>{r.servicioNombre}</span>
-                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#f4f6f8", fontSize: 12, color: "#465467" }}>{r.especialidadNombre}</span>
-                      <span style={{ padding: "6px 9px", borderRadius: 7, background: "#e8f3f7", color: "var(--primary-dark)", fontSize: 12, fontWeight: 600 }}>Cama {r.numeroCama}</span>
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          padding: "6px 9px",
+                          borderRadius: 7,
+                          background: "#f4f6f8",
+                          fontSize: 12,
+                          color: "#465467",
+                        }}
+                      >
+                        {r.servicioNombre}
+                      </span>
+                      <span
+                        style={{
+                          padding: "6px 9px",
+                          borderRadius: 7,
+                          background: "#f4f6f8",
+                          fontSize: 12,
+                          color: "#465467",
+                        }}
+                      >
+                        {r.especialidadNombre}
+                      </span>
+                      <span
+                        style={{
+                          padding: "6px 9px",
+                          borderRadius: 7,
+                          background: "#e8f3f7",
+                          color: "var(--primary-dark)",
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Cama {r.numeroCama}
+                      </span>
                     </div>
-                    <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>Ingresó: {new Date(r.fechaIngreso).toLocaleString()}</div>
+                    <div
+                      style={{
+                        marginTop: 10,
+                        fontSize: 12,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      Ingresó:{" "}
+                      {new Date(r.fechaIngreso).toLocaleString("es-PE", {
+                        timeZone: "America/Lima",
+                      })}
+                    </div>
                   </button>
                 );
               })}
@@ -376,22 +578,41 @@ export default function NuevoEgresoPage() {
           <>
             <section className="form-section">
               <div className="form-section-title">03 · Datos del egreso</div>
-              <p className="form-section-description">Registra el motivo y los datos correspondientes a la salida del paciente.</p>
+              <p className="form-section-description">
+                Registra el motivo y los datos correspondientes a la salida del
+                paciente.
+              </p>
 
               <div className="form-field">
                 <label className="form-label">Tipo de egreso</label>
-                <select value={tipoEgreso} onChange={(e) => setTipoEgreso(e.target.value)} className="form-select">
+                <select
+                  value={tipoEgreso}
+                  onChange={(e) => setTipoEgreso(e.target.value)}
+                  className="form-select"
+                >
                   <option value="">Selecciona...</option>
-                  {TIPOS_EGRESO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  {TIPOS_EGRESO.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               {tipoEgreso === "transferencia" && (
                 <div className="form-field">
                   <label className="form-label">Servicio de destino</label>
-                  <select value={servicioDestinoId} onChange={(e) => setServicioDestinoId(e.target.value)} className="form-select">
+                  <select
+                    value={servicioDestinoId}
+                    onChange={(e) => setServicioDestinoId(e.target.value)}
+                    className="form-select"
+                  >
                     <option value="">Selecciona el servicio de destino</option>
-                    {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                    {servicios.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombre}
+                      </option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -548,7 +769,7 @@ export default function NuevoEgresoPage() {
                               <div
                                 style={{
                                   marginTop: 2,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   color: "var(--muted)",
                                 }}
                               >
@@ -577,7 +798,7 @@ export default function NuevoEgresoPage() {
                 )}
               </div>
 
-                         <div
+              <div
                 className="form-field"
                 ref={diagnosticoRef}
                 style={{ position: "relative" }}
@@ -772,12 +993,74 @@ export default function NuevoEgresoPage() {
               </div>
 
               <div className="form-field">
-                <label className="form-label">Notas adicionales <span style={{ fontWeight: 400, color: "var(--muted)" }}>(opcional)</span></label>
-                <textarea value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones o información adicional del egreso..." className="form-input" rows={4} />
+                <label className="form-label">
+                  Notas adicionales{" "}
+                  <span style={{ fontWeight: 400, color: "var(--muted)" }}>
+                    (opcional)
+                  </span>
+                </label>
+                <textarea
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  placeholder="Observaciones o información adicional del egreso..."
+                  className="form-input"
+                  rows={4}
+                />
               </div>
 
-              <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
-                <button type="button" onClick={registrarEgreso} disabled={!listo || enviando} className="btn btn-primary">
+              <div className="form-field">
+                <label htmlFor="fechaEgreso" className="form-label">
+                  Fecha y hora real de egreso (Perú)
+                </label>
+                <input
+                  type="datetime-local"
+                  id="fechaEgreso"
+                  className="form-input"
+                  value={fechaEgreso}
+                  max={fechaLocalInput()}
+                  onChange={(e) => setFechaEgreso(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="review-summary">
+                <p>
+                  <strong>Paciente:</strong> {seleccionado.nombres}{" "}
+                  {seleccionado.apellidoPaterno} · HC {seleccionado.hc}
+                </p>
+                <p>
+                  <strong>Salida:</strong>{" "}
+                  {TIPOS_EGRESO.find((t) => t.value === tipoEgreso)?.label ||
+                    "Pendiente"}
+                </p>
+                <p>
+                  <strong>Médico:</strong> {medicoAlta || "Pendiente"}
+                </p>
+                <p>
+                  <strong>Diagnóstico:</strong>{" "}
+                  {diagnosticoFinal || "Pendiente"}
+                </p>
+                <p>
+                  El egreso cierra esta hospitalización y libera la cama. Para
+                  cambiar de servicio, usa{" "}
+                  <Link href={`/hospitalizaciones/${seleccionado.ingresoId}`}>
+                    Trasladar en la ficha
+                  </Link>
+                  .
+                </p>
+              </div>
+              <div
+                style={{
+                  marginTop: 16,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={registrarEgreso}
+                  disabled={!listo || enviando}
+                  className="btn btn-primary"
+                >
                   {enviando ? "Registrando..." : "Registrar egreso"}
                 </button>
               </div>

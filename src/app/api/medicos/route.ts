@@ -1,3 +1,5 @@
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { medicos, servicios } from "@/db/schema";
@@ -5,6 +7,7 @@ import { and, eq, like, or, sql } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
+    await requireUser();
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q")?.trim() ?? "";
 
@@ -51,11 +54,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(resultados);
   } catch (error) {
-    console.error("Error buscando médicos:", error);
-
-    return NextResponse.json(
-      { error: "No se pudieron consultar los médicos" },
-      { status: 500 },
-    );
+    return fallo(error);
   }
 }

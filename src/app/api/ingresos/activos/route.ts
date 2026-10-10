@@ -1,3 +1,6 @@
+import { ocupacionesActivas } from "@/db/schema";
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 // src/app/api/ingresos/activos/route.ts
 // Lista ingresos que AUN NO tienen egreso registrado (pacientes
 // actualmente internados). Permite buscar por HC, DNI o nombres/apellidos.
@@ -16,22 +19,24 @@ import { and, eq, isNull, like, or } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
+    await requireUser();
     const hc = request.nextUrl.searchParams.get("hc")?.trim() ?? "";
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
     const termino = q.length >= 2 ? `%${q}%` : "";
 
-    const busqueda = q.length >= 2
-      ? or(
-          like(pacientesRef.hc, termino),
-          like(pacientesRef.dni, termino),
-          like(pacientesRef.nombres, termino),
-          like(pacientesRef.apellidoPaterno, termino),
-          like(pacientesRef.apellidoMaterno, termino),
-        )
-      : hc
-        ? eq(ingresos.hc, hc)
-        : undefined;
+    const busqueda =
+      q.length >= 2
+        ? or(
+            like(pacientesRef.hc, termino),
+            like(pacientesRef.dni, termino),
+            like(pacientesRef.nombres, termino),
+            like(pacientesRef.apellidoPaterno, termino),
+            like(pacientesRef.apellidoMaterno, termino),
+          )
+        : hc
+          ? eq(ingresos.hc, hc)
+          : undefined;
 
     const condiciones = busqueda
       ? and(isNull(egresos.id), busqueda)
@@ -53,6 +58,10 @@ export async function GET(request: NextRequest) {
         servicioId: servicios.id,
       })
       .from(ingresos)
+      .innerJoin(
+        ocupacionesActivas,
+        eq(ocupacionesActivas.ingresoId, ingresos.id),
+      )
       .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
       .innerJoin(pacientesRef, eq(pacientesRef.hc, ingresos.hc))
       .innerJoin(camas, eq(camas.id, ingresos.camaId))
@@ -63,10 +72,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 }
-    );
+    return fallo(err);
   }
 }

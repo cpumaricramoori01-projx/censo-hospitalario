@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Archivos generados y carga antigua reemplazada por seed-demo.mjs.
+    "drizzle/schema.ts",
+    "drizzle/relations.ts",
+    "scripts/seed-demo.ts",
   ]),
 ]);
 

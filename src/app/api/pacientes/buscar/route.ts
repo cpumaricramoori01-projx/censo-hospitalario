@@ -1,3 +1,5 @@
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 // src/app/api/pacientes/buscar/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
@@ -7,6 +9,7 @@ import { or, like } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
+    await requireUser();
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
     if (q.length < 2) {
@@ -32,21 +35,13 @@ export async function GET(request: NextRequest) {
           like(pacientesRef.dni, termino),
           like(pacientesRef.nombres, termino),
           like(pacientesRef.apellidoPaterno, termino),
-          like(pacientesRef.apellidoMaterno, termino)
-        )
+          like(pacientesRef.apellidoMaterno, termino),
+        ),
       )
       .limit(20);
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error ? err.message : "Error desconocido",
-      },
-      { status: 500 }
-    );
+    return fallo(err);
   }
 }

@@ -1,3 +1,6 @@
+import { ocupacionesActivas } from "@/db/schema";
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
@@ -14,6 +17,7 @@ import { eq, isNull, and } from "drizzle-orm";
 
 export async function GET() {
   try {
+    await requireUser();
     const data = await db
       .select({
         ingresoId: ingresos.id,
@@ -42,79 +46,42 @@ export async function GET() {
         usaOxigeno: ingresos.usaOxigeno,
         usaVentilador: ingresos.usaVentilador,
 
-        diagnosticoCodigo:
-          diagnosticosIngreso.cie10Codigo,
-        diagnosticoDescripcion:
-          diagnosticosIngreso.cie10Descripcion,
+        diagnosticoCodigo: diagnosticosIngreso.cie10Codigo,
+        diagnosticoDescripcion: diagnosticosIngreso.cie10Descripcion,
       })
       .from(ingresos)
-
-      .leftJoin(
-        egresos,
-        eq(egresos.ingresoId, ingresos.id)
-      )
-
       .innerJoin(
-        pacientesRef,
-        eq(pacientesRef.hc, ingresos.hc)
+        ocupacionesActivas,
+        eq(ocupacionesActivas.ingresoId, ingresos.id),
       )
 
-      .innerJoin(
-        camas,
-        eq(camas.id, ingresos.camaId)
-      )
+      .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
 
-      .innerJoin(
-        especialidades,
-        eq(
-          especialidades.id,
-          camas.especialidadId
-        )
-      )
+      .innerJoin(pacientesRef, eq(pacientesRef.hc, ingresos.hc))
 
-      .innerJoin(
-        servicios,
-        eq(
-          servicios.id,
-          especialidades.servicioId
-        )
-      )
+      .innerJoin(camas, eq(camas.id, ingresos.camaId))
 
-      .leftJoin(
-        medicos,
-        eq(
-          medicos.id,
-          ingresos.medicoId
-        )
-      )
+      .innerJoin(especialidades, eq(especialidades.id, camas.especialidadId))
+
+      .innerJoin(servicios, eq(servicios.id, especialidades.servicioId))
+
+      .leftJoin(medicos, eq(medicos.id, ingresos.medicoId))
 
       .leftJoin(
         diagnosticosIngreso,
         and(
-          eq(
-            diagnosticosIngreso.ingresoId,
-            ingresos.id
-          ),
-          eq(
-            diagnosticosIngreso.orden,
-            1
-          )
-        )
+          eq(diagnosticosIngreso.ingresoId, ingresos.id),
+          eq(diagnosticosIngreso.orden, 1),
+        ),
       )
 
-      .where(
-        isNull(egresos.id)
-      );
+      .where(isNull(egresos.id));
 
     const resultado = data.map((item) => ({
       ingresoId: item.ingresoId,
       hc: item.hc,
 
-      paciente: [
-        item.nombres,
-        item.apellidoPaterno,
-        item.apellidoMaterno,
-      ]
+      paciente: [item.nombres, item.apellidoPaterno, item.apellidoMaterno]
         .filter(Boolean)
         .join(" "),
 
@@ -150,13 +117,11 @@ export async function GET() {
       diagnostico: item.diagnosticoCodigo
         ? {
             codigo: item.diagnosticoCodigo,
-            descripcion:
-              item.diagnosticoDescripcion,
+            descripcion: item.diagnosticoDescripcion,
           }
         : {
             codigo: null,
-            descripcion:
-              item.diagnosticoDescripcion,
+            descripcion: item.diagnosticoDescripcion,
           },
 
       fechaIngreso: item.fechaIngreso,
@@ -167,19 +132,6 @@ export async function GET() {
 
     return NextResponse.json(resultado);
   } catch (err) {
-    console.error(
-      "Error obteniendo pacientes hospitalizados:",
-      err
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
+    return fallo(err);
   }
 }

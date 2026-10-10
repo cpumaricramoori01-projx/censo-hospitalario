@@ -1,5 +1,9 @@
+import { periodoReporte } from "@/lib/hospital";
+import { HttpError, identificador } from "@/lib/validation";
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq, gte, lte, or } from "drizzle-orm";
+import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
 import {
   ingresos,
@@ -14,6 +18,7 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    await requireUser();
     const { searchParams } = new URL(request.url);
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
@@ -22,21 +27,23 @@ export async function GET(request: NextRequest) {
 
     const filtros = [];
 
-    if (desde) {
-      filtros.push(gte(ingresos.fechaIngreso, new Date(`${desde}T00:00:00`)));
+    let periodo;
+    try {
+      periodo = periodoReporte(desde, hasta);
+    } catch (e) {
+      throw new HttpError((e as Error).message);
     }
-
-    if (hasta) {
-      filtros.push(lte(ingresos.fechaIngreso, new Date(`${hasta}T23:59:59`)));
-    }
+    if (periodo.inicio)
+      filtros.push(gte(ingresos.fechaIngreso, periodo.inicio));
+    if (periodo.fin) filtros.push(lt(ingresos.fechaIngreso, periodo.fin));
 
     if (servicioId && servicioId !== "todos") {
       if (/^\d+$/.test(servicioId)) {
-        filtros.push(eq(servicios.id, Number(servicioId)));
+        filtros.push(eq(ingresos.servicioIngresoId, identificador(servicioId)));
       } else {
         // Compatibilidad con la versión anterior de la pantalla,
         // que enviaba el nombre del servicio en lugar de su ID.
-        filtros.push(eq(servicios.nombre, servicioId));
+        filtros.push(eq(ingresos.servicioIngreso, servicioId));
       }
     }
 
@@ -54,10 +61,10 @@ export async function GET(request: NextRequest) {
         fechaIngreso: ingresos.fechaIngreso,
         tipoIngreso: ingresos.tipoIngreso,
         financiamiento: ingresos.financiamiento,
-        cama: camas.numero,
+        cama: ingresos.camaIngreso,
         ubicacion: camas.ubicacion,
-        especialidad: especialidades.nombre,
-        servicio: servicios.nombre,
+        especialidad: ingresos.especialidadIngreso,
+        servicio: ingresos.servicioIngreso,
         medicoId: medicos.id,
         medicoNombres: medicos.nombres,
         medicoApellidoPaterno: medicos.apellidoPaterno,
@@ -87,11 +94,7 @@ export async function GET(request: NextRequest) {
     const resultado = rows.map((item) => ({
       id: item.id,
       hc: item.hc,
-      paciente: [
-        item.nombres,
-        item.apellidoPaterno,
-        item.apellidoMaterno,
-      ]
+      paciente: [item.nombres, item.apellidoPaterno, item.apellidoMaterno]
         .filter(Boolean)
         .join(" "),
       fechaIngreso: item.fechaIngreso,
@@ -109,7 +112,7 @@ export async function GET(request: NextRequest) {
           ]
             .filter(Boolean)
             .join(" ")
-        : item.medicoRegistrado ?? "",
+        : (item.medicoRegistrado ?? ""),
       diagnosticoCodigo: item.diagnosticoCodigo,
       diagnostico: item.diagnostico,
       activo: item.egresoId == null,
@@ -117,15 +120,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(resultado);
   } catch (error) {
-    console.error("Error obteniendo reporte de ingresos:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo consultar el reporte de ingresos.",
-      },
-      { status: 500 },
-    );
+    return fallo(error);
   }
 }

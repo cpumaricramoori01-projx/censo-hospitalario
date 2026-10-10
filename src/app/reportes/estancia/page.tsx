@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import GeneratedAt from "@/app/components/GeneratedAt";
+import Brand from "@/app/components/Brand";
 import { useEffect, useMemo, useState } from "react";
 
 type Registro = {
@@ -27,6 +29,8 @@ type Resumen = {
   egresadas: number;
   prolongadas: number;
   promedio: number;
+  promedioActivas: number;
+  promedioEgresadas: number;
 };
 
 type Filtros = {
@@ -38,14 +42,18 @@ type Filtros = {
 };
 
 function fechaLocal(valor: Date) {
-  return valor.toLocaleDateString("en-CA");
+  return valor.toLocaleDateString("en-CA", { timeZone: "America/Lima" });
 }
 
 function fechaHora(fecha: string | null) {
   if (!fecha) return "—";
   const valor = new Date(fecha);
   return Number.isFinite(valor.getTime())
-    ? valor.toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" })
+    ? valor.toLocaleString("es-PE", {
+        timeZone: "America/Lima",
+        dateStyle: "short",
+        timeStyle: "short",
+      })
     : "—";
 }
 
@@ -55,16 +63,14 @@ const resumenInicial: Resumen = {
   egresadas: 0,
   prolongadas: 0,
   promedio: 0,
+  promedioActivas: 0,
+  promedioEgresadas: 0,
 };
 
 export default function EstanciaReportPage() {
   const hoy = useMemo(() => new Date(), []);
-  const inicioMes = useMemo(
-    () => new Date(hoy.getFullYear(), hoy.getMonth(), 1),
-    [hoy]
-  );
 
-  const [desde, setDesde] = useState(fechaLocal(inicioMes));
+  const [desde, setDesde] = useState(fechaLocal(hoy).slice(0, 7) + "-01");
   const [hasta, setHasta] = useState(fechaLocal(hoy));
   const [servicio, setServicio] = useState("todos");
   const [estado, setEstado] = useState("todos");
@@ -88,19 +94,26 @@ export default function EstanciaReportPage() {
       if (f.estado !== "todos") params.set("estado", f.estado);
       if (f.minimo && f.minimo !== "0") params.set("minimo", f.minimo);
 
-      const respuesta = await fetch(`/api/reportes/estancia?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const respuesta = await fetch(
+        `/api/reportes/estancia?${params.toString()}`,
+        {
+          cache: "no-store",
+        },
+      );
       const resultado = await respuesta.json();
 
       if (!respuesta.ok) {
-        throw new Error(resultado?.error || "No se pudo consultar el reporte de estancia.");
+        throw new Error(
+          resultado?.error || "No se pudo consultar el reporte de estancia.",
+        );
       }
 
       setDatos(Array.isArray(resultado.datos) ? resultado.datos : []);
       setResumen(resultado.resumen ?? resumenInicial);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cargar el reporte.");
+      setError(
+        e instanceof Error ? e.message : "No se pudo cargar el reporte.",
+      );
       setDatos([]);
       setResumen(resumenInicial);
     } finally {
@@ -109,6 +122,8 @@ export default function EstanciaReportPage() {
   };
 
   useEffect(() => {
+    // Consulta inicial al montar la pantalla.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     consultar();
     // La consulta inicial solo debe ejecutarse al montar el reporte.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,10 +133,13 @@ export default function EstanciaReportPage() {
     () =>
       Array.from(
         new Map(
-          datos.map((d) => [d.servicioId, { id: d.servicioId, nombre: d.servicio }])
-        ).values()
+          datos.map((d) => [
+            d.servicioId,
+            { id: d.servicioId, nombre: d.servicio },
+          ]),
+        ).values(),
       ).sort((a, b) => a.nombre.localeCompare(b.nombre)),
-    [datos]
+    [datos],
   );
 
   const filtrados = useMemo(() => {
@@ -133,13 +151,13 @@ export default function EstanciaReportPage() {
         d.paciente.toLowerCase().includes(termino) ||
         d.hc.toLowerCase().includes(termino) ||
         d.servicio.toLowerCase().includes(termino) ||
-        d.especialidad.toLowerCase().includes(termino)
+        d.especialidad.toLowerCase().includes(termino),
     );
   }, [datos, busqueda]);
 
   const limpiar = () => {
     const filtros: Filtros = {
-      desde: fechaLocal(inicioMes),
+      desde: fechaLocal(hoy).slice(0, 7) + "-01",
       hasta: fechaLocal(hoy),
       servicio: "todos",
       estado: "todos",
@@ -196,7 +214,7 @@ export default function EstanciaReportPage() {
       .join("")}</tr></thead><tbody>${filas
       .map(
         (fila) =>
-          `<tr>${fila.map((celda) => `<td>${esc(celda)}</td>`).join("")}</tr>`
+          `<tr>${fila.map((celda) => `<td>${esc(celda)}</td>`).join("")}</tr>`,
       )
       .join("")}</tbody></table>`;
 
@@ -205,7 +223,7 @@ export default function EstanciaReportPage() {
     const url = URL.createObjectURL(
       new Blob(["\ufeff", html], {
         type: "application/vnd.ms-excel;charset=utf-8",
-      })
+      }),
     );
     const enlace = document.createElement("a");
     enlace.href = url;
@@ -218,14 +236,26 @@ export default function EstanciaReportPage() {
     <>
       <style>{`@media print { .estancia-no-print{display:none!important}.estancia-page{max-width:none!important;margin:0!important;padding:0!important}.estancia-print{display:block!important}body{background:#fff!important}@page{size:A4 landscape;margin:12mm}}.estancia-print{display:none}`}</style>
 
-      <div className="panel-page estancia-page" style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <section className="page-heading estancia-no-print" style={{ marginBottom: 20 }}>
+      <div
+        className="panel-page estancia-page"
+        style={{ maxWidth: 1320, margin: "0 auto" }}
+      >
+        <p className="estancia-no-print">
+          Estancia acumulada promedio de pacientes activos:{" "}
+          {resumen.promedioActivas} días. Los filtros de fecha corresponden al
+          ingreso.
+        </p>
+        <section
+          className="page-heading estancia-no-print"
+          style={{ marginBottom: 20 }}
+        >
           <div className="panel-page-heading">
             <div>
               <p className="page-kicker">Información hospitalaria</p>
               <h1>Reporte de estancia hospitalaria</h1>
               <p>
-                Consulta los días de hospitalización, identifica estancias prolongadas y diferencia pacientes activos y egresados.
+                Consulta los días de hospitalización, identifica estancias
+                prolongadas y diferencia pacientes activos y egresados.
               </p>
             </div>
             <Link
@@ -259,7 +289,7 @@ export default function EstanciaReportPage() {
         >
           {[
             ["Registros", resumen.total, "▤"],
-            ["Estancia promedio", `${resumen.promedio} d.`, "◷"],
+            ["Promedio de egresadas", `${resumen.promedioEgresadas} d.`, "◷"],
             ["Estancias activas", resumen.activas, "●"],
             ["Estancias prolongadas", resumen.prolongadas, "!"],
             ["Egresadas", resumen.egresadas, "✓"],
@@ -292,10 +322,23 @@ export default function EstanciaReportPage() {
                 {icono}
               </div>
               <div>
-                <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 700 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--muted)",
+                    fontWeight: 700,
+                  }}
+                >
                   {titulo}
                 </div>
-                <strong style={{ display: "block", fontSize: 21, lineHeight: 1.1, marginTop: 3 }}>
+                <strong
+                  style={{
+                    display: "block",
+                    fontSize: 21,
+                    lineHeight: 1.1,
+                    marginTop: 3,
+                  }}
+                >
                   {cargando ? "—" : valor}
                 </strong>
               </div>
@@ -317,96 +360,370 @@ export default function EstanciaReportPage() {
               boxShadow: "var(--shadow-sm)",
             }}
           >
-            <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>
+            <label
+              style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)" }}
+            >
               DESDE
-              <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} />
+              <input
+                type="date"
+                value={desde}
+                onChange={(e) => setDesde(e.target.value)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 5,
+                  padding: "8px 9px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 7,
+                  font: "inherit",
+                  fontSize: 12,
+                }}
+              />
             </label>
-            <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>
+            <label
+              style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)" }}
+            >
               HASTA
-              <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} />
+              <input
+                type="date"
+                value={hasta}
+                onChange={(e) => setHasta(e.target.value)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 5,
+                  padding: "8px 9px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 7,
+                  font: "inherit",
+                  fontSize: 12,
+                }}
+              />
             </label>
-            <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>
+            <label
+              style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)" }}
+            >
               SERVICIO
-              <select value={servicio} onChange={(e) => setServicio(e.target.value)} style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11, background: "#fff" }}>
+              <select
+                value={servicio}
+                onChange={(e) => setServicio(e.target.value)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 5,
+                  padding: "8px 9px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 7,
+                  font: "inherit",
+                  fontSize: 12,
+                  background: "#fff",
+                }}
+              >
                 <option value="todos">Todos los servicios</option>
-                {servicios.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                {servicios.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
               </select>
             </label>
-            <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>
+            <label
+              style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)" }}
+            >
               ESTADO
-              <select value={estado} onChange={(e) => setEstado(e.target.value)} style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11, background: "#fff" }}>
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 5,
+                  padding: "8px 9px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 7,
+                  font: "inherit",
+                  fontSize: 12,
+                  background: "#fff",
+                }}
+              >
                 <option value="todos">Todos</option>
                 <option value="activa">Activa</option>
                 <option value="egresada">Egresada</option>
               </select>
             </label>
-            <label style={{ fontSize: 10, fontWeight: 800, color: "var(--muted)" }}>
+            <label
+              style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)" }}
+            >
               MÍNIMO DE DÍAS
-              <input type="number" min="0" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={{ display: "block", width: "100%", marginTop: 5, padding: "8px 9px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} />
+              <input
+                type="number"
+                min="0"
+                value={minimo}
+                onChange={(e) => setMinimo(e.target.value)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: 5,
+                  padding: "8px 9px",
+                  border: "1px solid var(--border)",
+                  borderRadius: 7,
+                  font: "inherit",
+                  fontSize: 12,
+                }}
+              />
             </label>
-            <button type="button" onClick={() => consultar()} style={{ border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", borderRadius: 8, padding: "8px 12px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <button
+              type="button"
+              onClick={() => consultar()}
+              style={{
+                border: "1px solid var(--primary)",
+                background: "var(--primary)",
+                color: "#fff",
+                borderRadius: 8,
+                padding: "8px 12px",
+                font: "inherit",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
               Consultar
             </button>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
-            <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar por paciente, HC, servicio o especialidad..." style={{ flex: 1, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 7, font: "inherit", fontSize: 11 }} />
-            <button type="button" onClick={limpiar} style={{ border: "1px solid var(--border)", background: "#fff", color: "var(--muted)", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              marginTop: 10,
+            }}
+          >
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por paciente, HC, servicio o especialidad..."
+              style={{
+                flex: 1,
+                padding: "8px 10px",
+                border: "1px solid var(--border)",
+                borderRadius: 7,
+                font: "inherit",
+                fontSize: 12,
+              }}
+            />
+            <button
+              type="button"
+              onClick={limpiar}
+              style={{
+                border: "1px solid var(--border)",
+                background: "#fff",
+                color: "var(--muted)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                font: "inherit",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
               Limpiar
             </button>
           </div>
         </section>
 
         {error && (
-          <section className="estancia-no-print" role="alert" style={{ marginBottom: 18, padding: "12px 15px", background: "var(--danger-light)", border: "1px solid #ecc7c4", borderRadius: 10, color: "var(--danger)", fontSize: 12 }}>
+          <section
+            className="estancia-no-print"
+            role="alert"
+            style={{
+              marginBottom: 18,
+              padding: "12px 15px",
+              background: "var(--danger-light)",
+              border: "1px solid #ecc7c4",
+              borderRadius: 10,
+              color: "var(--danger)",
+              fontSize: 12,
+            }}
+          >
             {error}
           </section>
         )}
 
-        <section className="estancia-no-print" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
-          <div style={{ padding: "13px 15px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <section
+          className="estancia-no-print"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            overflow: "hidden",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div
+            style={{
+              padding: "13px 15px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <div>
               <h2 style={{ margin: 0, fontSize: 15 }}>Detalle de estancias</h2>
-              <p style={{ margin: "3px 0 0", color: "var(--muted)", fontSize: 10 }}>
+              <p
+                style={{
+                  margin: "3px 0 0",
+                  color: "var(--muted)",
+                  fontSize: 12,
+                }}
+              >
                 {cargando
                   ? "Consultando..."
-                  : filtrados.length + " resultado" + (filtrados.length === 1 ? "" : "s") + " mostrado" + (filtrados.length === 1 ? "" : "s")}
+                  : filtrados.length +
+                    " resultado" +
+                    (filtrados.length === 1 ? "" : "s") +
+                    " mostrado" +
+                    (filtrados.length === 1 ? "" : "s")}
               </p>
             </div>
             <div style={{ display: "flex", gap: 7 }}>
-              <button type="button" onClick={() => window.print()} style={{ border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  border: "1px solid var(--primary)",
+                  background: "var(--primary)",
+                  color: "#fff",
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  font: "inherit",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
                 🖨 Imprimir / PDF
               </button>
-              <button type="button" onClick={exportarExcel} disabled={cargando || filtrados.length === 0} style={{ border: "1px solid #4f7b58", background: "#fff", color: "#38633f", borderRadius: 8, padding: "8px 10px", font: "inherit", fontSize: 10, fontWeight: 800, cursor: "pointer", opacity: cargando || filtrados.length === 0 ? 0.5 : 1 }}>
+              <button
+                type="button"
+                onClick={exportarExcel}
+                disabled={cargando || filtrados.length === 0}
+                style={{
+                  border: "1px solid #4f7b58",
+                  background: "#fff",
+                  color: "#38633f",
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  font: "inherit",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  opacity: cargando || filtrados.length === 0 ? 0.5 : 1,
+                }}
+              >
                 📊 Excel
               </button>
             </div>
           </div>
 
           {cargando ? (
-            <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>Cargando estancias...</div>
+            <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>
+              Cargando estancias...
+            </div>
           ) : filtrados.length === 0 ? (
-            <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>No hay registros que coincidan con los filtros seleccionados.</div>
+            <div style={{ padding: 22, color: "var(--muted)", fontSize: 12 }}>
+              No hay registros que coincidan con los filtros seleccionados.
+            </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 12,
+                }}
+              >
                 <thead>
                   <tr style={{ background: "#f8fafb" }}>
-                    {["Paciente / HC", "Servicio / Especialidad", "Cama", "Ingreso", "Egreso", "Estado", "Estancia"].map((h) => (
-                      <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: "var(--muted)", fontSize: 8.5, textTransform: "uppercase", letterSpacing: ".06em", whiteSpace: "nowrap" }}>{h}</th>
+                    {[
+                      "Paciente / HC",
+                      "Servicio / Especialidad",
+                      "Cama",
+                      "Ingreso",
+                      "Egreso",
+                      "Estado",
+                      "Estancia",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: "8px 10px",
+                          textAlign: "left",
+                          color: "var(--muted)",
+                          fontSize: 12,
+                          textTransform: "uppercase",
+                          letterSpacing: ".06em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {h}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtrados.map((d) => (
-                    <tr key={d.ingresoId} style={{ borderTop: "1px solid #edf1f3" }}>
-                      <td style={{ padding: "8px 10px", minWidth: 180 }}><strong style={{ display: "block", fontSize: 11 }}>{d.paciente}</strong><span style={{ color: "var(--muted)", fontSize: 9 }}>HC {d.hc}</span></td>
-                      <td style={{ padding: "8px 10px", minWidth: 155 }}><strong style={{ fontSize: 10.5 }}>{d.servicio}</strong><span style={{ display: "block", marginTop: 2, color: "var(--muted)", fontSize: 9 }}>{d.especialidad}</span></td>
-                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Cama {d.cama}</td>
-                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{fechaHora(d.fechaIngreso)}</td>
-                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{fechaHora(d.fechaEgreso)}</td>
-                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{d.estadoTexto}</td>
-                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap", fontWeight: 800 }}>{d.diasEstancia} d.{d.estanciaProlongada ? " · ≥15 d." : ""}</td>
+                    <tr
+                      key={d.ingresoId}
+                      style={{ borderTop: "1px solid #edf1f3" }}
+                    >
+                      <td style={{ padding: "8px 10px", minWidth: 180 }}>
+                        <strong style={{ display: "block", fontSize: 12 }}>
+                          {d.paciente}
+                        </strong>
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                          HC {d.hc}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 10px", minWidth: 155 }}>
+                        <strong style={{ fontSize: 12 }}>{d.servicio}</strong>
+                        <span
+                          style={{
+                            display: "block",
+                            marginTop: 2,
+                            color: "var(--muted)",
+                            fontSize: 12,
+                          }}
+                        >
+                          {d.especialidad}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                        Cama {d.cama}
+                      </td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                        {fechaHora(d.fechaIngreso)}
+                      </td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                        {fechaHora(d.fechaEgreso)}
+                      </td>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                        {d.estadoTexto}
+                      </td>
+                      <td
+                        style={{
+                          padding: "8px 10px",
+                          whiteSpace: "nowrap",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {d.diasEstancia} d.
+                        {d.estanciaProlongada ? " · ≥15 d." : ""}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -416,26 +733,113 @@ export default function EstanciaReportPage() {
         </section>
 
         <section className="estancia-print reportes-print">
-          <header style={{ borderBottom: "2px solid #222", paddingBottom: 8, marginBottom: 10 }}>
+          <Brand full />
+          <header
+            style={{
+              borderBottom: "2px solid #222",
+              paddingBottom: 8,
+              marginBottom: 10,
+            }}
+          >
             <div style={{ textAlign: "center" }}>
-              <strong style={{ fontSize: 15 }}>HOSPITAL REGIONAL ELEAZAR GUZMÁN BARRÓN</strong>
-              <div style={{ fontSize: 10 }}>Sistema de Censo Hospitalario</div>
-              <strong style={{ display: "block", fontSize: 12, marginTop: 4 }}>REPORTE DE ESTANCIA HOSPITALARIA</strong>
+              <strong style={{ fontSize: 15 }}>
+                HOSPITAL REGIONAL ELEAZAR GUZMÁN BARRÓN
+              </strong>
+              <div style={{ fontSize: 12 }}>Sistema de Censo Hospitalario</div>
+              <strong style={{ display: "block", fontSize: 12, marginTop: 4 }}>
+                REPORTE DE ESTANCIA HOSPITALARIA
+              </strong>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 9 }}>
-              <span>Período de ingreso: {desde || "—"} al {hasta || "—"}</span>
-              <span>Generado: {new Date().toLocaleString("es-PE")}</span>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 8,
+                fontSize: 12,
+              }}
+            >
+              <span>
+                Período de ingreso: {desde || "—"} al {hasta || "—"}
+              </span>
+              <span>
+                Generado: <GeneratedAt version={datos} />
+              </span>
             </div>
           </header>
-          <div style={{ display: "flex", gap: 18, marginBottom: 8, fontSize: 9 }}>
-            <span>Total: <strong>{filtrados.length}</strong></span>
-            <span>Promedio: <strong>{resumen.promedio} d.</strong></span>
-            <span>Activas: <strong>{resumen.activas}</strong></span>
-            <span>Egresadas: <strong>{resumen.egresadas}</strong></span>
+          <div
+            style={{ display: "flex", gap: 18, marginBottom: 8, fontSize: 12 }}
+          >
+            <span>
+              Total: <strong>{filtrados.length}</strong>
+            </span>
+            <span>
+              Promedio: <strong>{resumen.promedioEgresadas} d.</strong>
+            </span>
+            <span>
+              Activas: <strong>{resumen.activas}</strong>
+            </span>
+            <span>
+              Egresadas: <strong>{resumen.egresadas}</strong>
+            </span>
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 8.5 }}>
-            <thead><tr>{["Paciente / HC", "Servicio / Especialidad", "Cama", "Ingreso", "Egreso", "Estado", "Estancia"].map((h) => <th key={h} style={{ border: "1px solid #444", padding: 4, textAlign: "left" }}>{h}</th>)}</tr></thead>
-            <tbody>{filtrados.map((d) => <tr key={d.ingresoId}><td style={{ border: "1px solid #777", padding: 4 }}>{d.paciente}<br />HC {d.hc}</td><td style={{ border: "1px solid #777", padding: 4 }}>{d.servicio}<br />{d.especialidad}</td><td style={{ border: "1px solid #777", padding: 4 }}>Cama {d.cama}</td><td style={{ border: "1px solid #777", padding: 4 }}>{fechaHora(d.fechaIngreso)}</td><td style={{ border: "1px solid #777", padding: 4 }}>{fechaHora(d.fechaEgreso)}</td><td style={{ border: "1px solid #777", padding: 4 }}>{d.estadoTexto}</td><td style={{ border: "1px solid #777", padding: 4 }}>{d.diasEstancia} d.{d.estanciaProlongada ? " · ≥15 d." : ""}</td></tr>)}</tbody>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
+          >
+            <thead>
+              <tr>
+                {[
+                  "Paciente / HC",
+                  "Servicio / Especialidad",
+                  "Cama",
+                  "Ingreso",
+                  "Egreso",
+                  "Estado",
+                  "Estancia",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      border: "1px solid #444",
+                      padding: 4,
+                      textAlign: "left",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((d) => (
+                <tr key={d.ingresoId}>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    {d.paciente}
+                    <br />
+                    HC {d.hc}
+                  </td>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    {d.servicio}
+                    <br />
+                    {d.especialidad}
+                  </td>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    Cama {d.cama}
+                  </td>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    {fechaHora(d.fechaIngreso)}
+                  </td>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    {fechaHora(d.fechaEgreso)}
+                  </td>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    {d.estadoTexto}
+                  </td>
+                  <td style={{ border: "1px solid #777", padding: 4 }}>
+                    {d.diasEstancia} d.{d.estanciaProlongada ? " · ≥15 d." : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </section>
       </div>

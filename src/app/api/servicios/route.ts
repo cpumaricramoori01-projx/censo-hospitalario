@@ -1,3 +1,6 @@
+import { jsonObject } from "@/lib/validation";
+import { requireUser, requireWrite } from "@/lib/auth";
+import { fallo, texto, identificador } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { servicios } from "@/db/schema";
@@ -5,33 +8,25 @@ import { eq } from "drizzle-orm";
 
 export async function GET() {
   try {
+    await requireUser();
     const data = await db.select().from(servicios);
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
+    return fallo(err);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const nombre = String(body.nombre ?? "").trim();
+    await requireWrite(true);
+    const body = await jsonObject(request);
+    const nombre = texto(body.nombre, "Servicio", 60);
 
     if (!nombre) {
       return NextResponse.json(
         { error: "El nombre del servicio es obligatorio" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -43,7 +38,7 @@ export async function POST(request: NextRequest) {
     if (existente.length > 0) {
       return NextResponse.json(
         { error: "Ya existe un servicio con ese nombre" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -56,34 +51,25 @@ export async function POST(request: NextRequest) {
         id: result[0].insertId,
         nombre,
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
+    return fallo(err);
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json();
+    await requireWrite(true);
+    const body = await jsonObject(request);
 
-    const id = Number(body.id);
-    const nombre = String(body.nombre ?? "").trim();
+    const id = identificador(body.id);
+    const nombre = texto(body.nombre, "Servicio", 60);
 
     if (!id || !nombre) {
       return NextResponse.json(
         { error: "ID y nombre son obligatorios" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -95,30 +81,17 @@ export async function PATCH(request: NextRequest) {
     if (existente.length === 0) {
       return NextResponse.json(
         { error: "Servicio no encontrado" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    await db
-      .update(servicios)
-      .set({ nombre })
-      .where(eq(servicios.id, id));
+    await db.update(servicios).set({ nombre }).where(eq(servicios.id, id));
 
     return NextResponse.json({
       id,
       nombre,
     });
   } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
+    return fallo(err);
   }
 }

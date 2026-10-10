@@ -1,44 +1,50 @@
 import Link from "next/link";
-
-const funciones = [
-  { numero: "01", titulo: "Gestión de ingresos", texto: "Registra hospitalizaciones y asigna la cama correspondiente." },
-  { numero: "02", titulo: "Control de camas", texto: "Consulta la estructura hospitalaria y el estado de cada cama." },
-  { numero: "03", titulo: "Registro de egresos", texto: "Actualiza oportunamente la salida de pacientes hospitalizados." },
-];
-
+import Brand from "./components/Brand";
+import Icon from "./components/Icon";
 export default function LandingPage() {
   return (
-    <div className="landing-page">
-      <section className="landing-hero">
-        <div className="landing-hero-copy">
-          <div className="institution-placeholder" aria-label="Espacio para logo institucional">
-            <span className="institution-placeholder-mark">+</span>
-            <span>LOGO INSTITUCIONAL</span>
-          </div>
-          <p className="landing-kicker">TRANSFORMACIÓN DIGITAL EN SALUD</p>
-          <h1>Censo<br /><span>Hospitalario</span></h1>
-          <p className="landing-description">Plataforma para la gestión organizada de pacientes hospitalizados, camas y movimientos asistenciales.</p>
-          <Link href="/panel" className="landing-cta"><span>Ingresar al sistema</span><span aria-hidden="true">→</span></Link>
-          <p className="landing-note">Sistema de gestión hospitalaria · Acceso al panel operativo</p>
-        </div>
-        <div className="landing-visual" aria-hidden="true">
-          <div className="landing-grid-pattern" />
-          <div className="landing-orbit orbit-one" />
-          <div className="landing-orbit orbit-two" />
-          <div className="landing-center-card">
-            <div className="landing-logo-placeholder"><span>+</span></div>
-            <strong>CENSO</strong><small>HOSPITALARIO</small>
-            <div className="landing-status-line"><span /> Sistema operativo</div>
-          </div>
-          <div className="landing-data-card landing-data-card-one"><span>CAMAS</span><strong>Gestión</strong><small>Disponibilidad en tiempo real</small></div>
-          <div className="landing-data-card landing-data-card-two"><span>PACIENTES</span><strong>Registro</strong><small>Información centralizada</small></div>
-        </div>
+    <div className="hegb-landing">
+      <Brand full />
+      <section className="hegb-hero">
+        <p className="page-kicker">Hospital Regional Eleazar Guzmán Barrón</p>
+        <h1>
+          Un censo claro.
+          <br />
+          <span>Una atención organizada.</span>
+        </h1>
+        <p>
+          Consulta la disponibilidad de camas y acompaña cada hospitalización
+          desde el ingreso hasta el egreso.
+        </p>
+        <Link href="/login" className="btn btn-primary">
+          Ingresar al sistema <Icon name="admission" />
+        </Link>
       </section>
-      <section className="landing-features" aria-labelledby="features-title">
-        <div className="landing-section-heading"><p className="page-kicker">MÓDULOS DEL SISTEMA</p><h2 id="features-title">Todo lo necesario para la gestión hospitalaria</h2><p>Herramientas para registrar, organizar y consultar la información relacionada con pacientes, ingresos, egresos y disponibilidad de camas.</p></div>
-        <div className="landing-feature-grid">{funciones.map((funcion) => <article className="landing-feature-card" key={funcion.numero}><span>{funcion.numero}</span><h3>{funcion.titulo}</h3><p>{funcion.texto}</p></article>)}</div>
-      </section>
-      <section className="landing-institutional"><div className="landing-secondary-logo"><span>+</span><div><strong>IDENTIDAD INSTITUCIONAL</strong><small>Espacio reservado para logotipo del hospital</small></div></div><p>Preparado para integrar la identidad visual oficial de la institución.</p></section>
+      <div className="hegb-feature-grid">
+        {[
+          {
+            icon: "bed" as const,
+            title: "Disponibilidad de camas",
+            text: "Ubicación y estado por servicio y especialidad.",
+          },
+          {
+            icon: "transfer" as const,
+            title: "Continuidad de la estancia",
+            text: "Ingresos, traslados e historial en una misma hospitalización.",
+          },
+          {
+            icon: "report" as const,
+            title: "Información para tu servicio",
+            text: "Censo actual y reportes para apoyar la gestión diaria.",
+          },
+        ].map((x) => (
+          <article key={x.title}>
+            <Icon name={x.icon} />
+            <h2>{x.title}</h2>
+            <p>{x.text}</p>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }

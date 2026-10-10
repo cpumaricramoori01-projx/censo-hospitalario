@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Censo Hospitalario · HEGB
 
-## Getting Started
+Sistema de gestión de hospitalizaciones del **Hospital Regional Eleazar Guzmán Barrón**. La marca incluida identifica la aplicación; no sustituye el emblema oficial del hospital.
 
-First, run the development server:
+## Operación
+
+- El censo abre la ficha del paciente: ubicación, diagnósticos, recursos, notas y recorrido.
+- Un paciente tiene una hospitalización activa y una cama tiene una asignación activa. Las restricciones únicas en MySQL y las transacciones protegen solicitudes simultáneas.
+- Cambiar de cama o servicio es un **traslado interno**, no un egreso y nuevo ingreso. Conserva la fecha inicial y registra un período de ubicación por cada movimiento.
+- El egreso cierra la hospitalización, termina la ubicación y libera la cama. No se permite modificar una estancia cerrada.
+- Fechas de eventos y fechas de registro son independientes; el responsable proviene de la sesión. Los registros atrasados deben respetar el recorrido y no solapar otra estancia en la cama.
+- MySQL almacena UTC; pantallas y filtros usan `America/Lima`. Estancia significa días completos de 24 horas, no pacientes-día. El promedio principal de estancia usa solo egresadas; las activas se muestran aparte.
+- Reporte de ingresos: servicio inicial. Egresos: servicio al egreso. Estancia: servicio actual para activas, servicio de egreso para cerradas; sus fechas filtran la fecha de ingreso.
+
+## Preparación
+
+Requiere Node 24 y MySQL 8. Instala con `npm ci`. Copia `.env.example` a `.env.local` y configura la conexión. SSL valida el certificado; añade `DATABASE_CA` si el proveedor necesita una CA propia. `DATABASE_SSL=false` se reserva para MySQL local.
+
+Genera `SESSION_SECRET` con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. No compartas ni subas este valor.
+
+Para crear un hash de contraseña sin incluirla en el historial de comandos:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+read -rs -p 'Contraseña: ' HEGB_PASSWORD
+printf '%s' "$HEGB_PASSWORD" | npm run auth:hash --silent
+unset HEGB_PASSWORD
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Configura `AUTH_USERS` como una lista JSON en `.env.local` (o una variable protegida del hosting):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+AUTH_USERS='[{"usuario":"nombre.apellido","nombre":"Nombre del personal","rol":"administrador","passwordHash":"HASH_GENERADO"}]'
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Cada persona debe tener su propia cuenta. Roles:
 
-## Learn More
+| Rol           | Permisos                                                           |
+| ------------- | ------------------------------------------------------------------ |
+| administrador | Consulta, operaciones y estructura hospitalaria                    |
+| operador      | Consulta, ingresos, actualización de estancia, traslados y egresos |
+| consulta      | Censo, fichas y reportes                                           |
 
-To learn more about Next.js, take a look at the following resources:
+Sin cuentas y secreto válidos, el sistema no habilita el acceso. Sesiones firmadas de ocho horas, cookies HttpOnly y SameSite, control de origen en escrituras y límite compartido de cinco intentos por usuario cada quince minutos. Retirar una cuenta, cambiar su hash/rol o rotar el secreto invalida sus sesiones. La gestión inicial de cuentas se hace en las variables protegidas; no hay registro público de usuarios.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Actualización de una base existente
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**No ejecutar la migración sobre producción sin probar primero una copia respaldada.** MySQL hace commits implícitos en DDL: una migración fallida requiere restauración, no se revierte automáticamente. Detén escrituras durante el proceso.
 
-## Deploy on Vercel
+1. Haz respaldo y restaura una copia aislada; apunta `.env.local` a esa copia.
+2. Comprueba si las fechas antiguas eran UTC o locales. Configura `LEGACY_TIME_ZONE=UTC` o `LEGACY_TIME_ZONE=America/Lima`; la segunda opción convierte las fechas existentes a UTC. El script se niega a adivinar.
+3. Ejecuta `npm run db:check`. Revisa y resuelve duplicados, estancias solapadas, referencias inválidas o egresos anteriores al ingreso. El script no corrige ni borra pacientes.
+4. Ejecuta `npm run db:upgrade`. Admite las tablas de médicos/diagnósticos y la columna `medico_id` creadas manualmente en la versión anterior. Registra la actualización en el historial de Drizzle.
+5. Compara censo y reportes; prueba ingreso, traslado y egreso. Si todo es correcto, repite sobre la base respaldada del hospital en una ventana de mantenimiento.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Las ubicaciones antiguas se reconstruyen desde la cama y estructura disponibles, se marcan `legacy` y **no recuperan movimientos que nunca se registraron**. Antes de migrar, comprueba el historial con los registros del hospital. Una migración parcial debe restaurarse desde el respaldo antes de repetirla.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Para una base nueva vacía, `npm run db:migrate` aplica la secuencia completa. `src/db/schema.ts` es la única fuente del esquema; las migraciones generadas están en `drizzle/`.
+
+## Validación y desarrollo
+
+```bash
+npm test
+npm run lint
+npx tsc --noEmit
+npm run build
+npm run dev
+```
+
+La integración se prueba únicamente en MySQL temporal `127.0.0.1:33306/censo_test`, nunca en producción:
+
+1. Crea un MySQL vacío y configura `.env.local` con las cuentas ficticias `admin.test`, `operador.test`, `consulta.test`, contraseña `local-test-password-123`, secreto de prueba y `LEGACY_TIME_ZONE=UTC`.
+2. Ejecuta `node --env-file=.env.local tests/prepare-db.mjs` y `npm run db:upgrade`.
+3. Inicia la aplicación en el puerto 3100: `npm run start -- -p 3100` después de compilar.
+4. Ejecuta `npm run test:integration`. Verifica permisos, origen, concurrencia, rollback, traslados, egresos, reportes históricos y límite de intentos. La base de prueba queda con datos ficticios; debe recrearse para repetir la suite.
+
+Los scripts de prueba verifican host, puerto y nombre de base antes de operar. `scripts/seed-demo.mjs` solo prepara catálogos en la base local de prueba.
+
+## Credenciales del repositorio anterior
+
+`.env` se retira del seguimiento, conservando la copia local. Si tuvo credenciales válidas, **reemplázalas en el proveedor y en el hosting**, porque retirarlo del commit actual no las elimina del historial público. No se ha reescrito el historial ni cambiado credenciales de servicios externos.
+
+## Identidad visual
+
+Azul petróleo y turquesa para navegación y acciones; verde para libre, azul para ocupada, gris para inoperativa, ámbar para atención y rojo para error. Los estados incluyen texto, además del color. Marca e iconos vectoriales y fuente Geist local en `public/brand`; licencia de fuente incluida. Los reportes imprimen el nombre del hospital y la marca del sistema.
+
+Las dependencias de producción se actualizaron a Next.js 16.4.0 y versiones compatibles; la auditoría de producción no reportó vulnerabilidades al validar esta versión. Quedan nueve avisos en herramientas de desarrollo (ESLint/Drizzle y dependencias transitivas), cuya corrección automática propone versiones anteriores incompatibles; no se forzó esa degradación.

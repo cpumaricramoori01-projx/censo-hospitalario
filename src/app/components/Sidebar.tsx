@@ -1,95 +1,106 @@
 "use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-
-type ItemSidebar = {
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Brand from "./Brand";
+import Icon, { type IconName } from "./Icon";
+type User = { nombre: string; rol: "administrador" | "operador" | "consulta" };
+const items: {
   label: string;
   href: string;
-  icono: string;
-  disabled?: boolean;
-};
-
-type GrupoSidebar = {
-  titulo: string | null;
-  items: ItemSidebar[];
-};
-
-const grupos: GrupoSidebar[] = [
-  { titulo: null, items: [{ label: "Panel principal", href: "/panel", icono: "▣" }] },
+  icon: IconName;
+  role?: "write" | "admin";
+}[] = [
+  { label: "Panel principal", href: "/panel", icon: "dashboard" },
+  { label: "Censo actual", href: "/censo", icon: "patient" },
   {
-    titulo: "Movimientos",
-    items: [
-      { label: "Registrar ingreso", href: "/ingresos/nuevo", icono: "↓" },
-      { label: "Registrar egreso", href: "/egresos/nuevo", icono: "↑" },
-    ],
+    label: "Registrar ingreso",
+    href: "/ingresos/nuevo",
+    icon: "admission",
+    role: "write",
   },
   {
-    titulo: "Hospitalización",
-    items: [
-      { label: "Estructura hospitalaria", href: "/test", icono: "▦" },
-      { label: "Censo actual", href: "/censo", icono: "▤" },
-    ],
+    label: "Registrar egreso",
+    href: "/egresos/nuevo",
+    icon: "discharge",
+    role: "write",
   },
   {
-    titulo: "Reportes",
-    items: [{ label: "Reportes", href: "/reportes", icono: "▥" }],
+    label: "Estructura hospitalaria",
+    href: "/estructura",
+    icon: "bed",
+    role: "admin",
   },
+  { label: "Reportes", href: "/reportes", icon: "report" },
 ];
-
 export default function Sidebar() {
-  const pathname = usePathname();
-  if (pathname === "/") return null;
-
+  const path = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  useEffect(() => {
+    if (path !== "/" && path !== "/login")
+      fetch("/api/auth/session", { cache: "no-store" })
+        .then(async (r) => {
+          if (r.ok) setUser(await r.json());
+          else router.replace("/login");
+        })
+        .catch(() => setUser(null));
+  }, [path, router]);
+  if (path === "/" || path === "/login") return null;
+  async function logout() {
+    const r = await fetch("/api/auth/logout", { method: "POST" });
+    if (r.ok) {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
   return (
     <aside className="app-sidebar">
       <div className="sidebar-brand">
         <Link href="/panel" className="sidebar-brand-link">
-          <div className="sidebar-brand-icon">+</div>
-          <div className="sidebar-brand-text">
-            <span className="sidebar-brand-title">Censo Hospitalario</span>
-            <span className="sidebar-brand-subtitle">Sistema de gestión</span>
-          </div>
+          <Brand />
         </Link>
       </div>
-
       <nav className="sidebar-nav" aria-label="Navegación principal">
-        {grupos.map((grupo, grupoIndex) => (
-          <div className="sidebar-group" key={grupoIndex}>
-            {grupo.titulo && <p className="sidebar-group-title">{grupo.titulo}</p>}
-            <div className="sidebar-items">
-              {grupo.items.map((item) => {
-                const activo = !item.disabled && pathname === item.href;
-
-                if (item.disabled) {
-                  return (
-                    <span key={item.label} className="sidebar-link sidebar-link-disabled">
-                      <span className="sidebar-link-icon">{item.icono}</span>
-                      <span>{item.label}</span>
-                    </span>
-                  );
-                }
-
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className={`sidebar-link ${activo ? "is-active" : ""}`}
-                  >
-                    <span className="sidebar-link-icon">{item.icono}</span>
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        <div className="sidebar-items">
+          {items
+            .filter(
+              (i) =>
+                !i.role ||
+                (user &&
+                  (i.role === "admin"
+                    ? user.rol === "administrador"
+                    : user.rol !== "consulta")),
+            )
+            .map((i) => (
+              <Link
+                href={i.href}
+                key={i.href}
+                className={`sidebar-link ${path === i.href || path.startsWith(i.href + "/") ? "is-active" : ""}`}
+                aria-current={path === i.href ? "page" : undefined}
+              >
+                <Icon name={i.icon} />
+                <span>{i.label}</span>
+              </Link>
+            ))}
+        </div>
       </nav>
-
       <div className="sidebar-footer">
-        <div className="sidebar-footer-line" />
-        <p>Gestión hospitalaria</p>
-        <span>Hospital Regional</span>
+        {user && (
+          <>
+            <strong>{user.nombre}</strong>
+            <span>{user.rol}</span>
+            <button className="sidebar-logout" onClick={logout}>
+              <Icon name="logout" />
+              Cerrar sesión
+            </button>
+          </>
+        )}
+        <p>
+          Hospital Regional
+          <br />
+          Eleazar Guzmán Barrón
+        </p>
       </div>
     </aside>
   );

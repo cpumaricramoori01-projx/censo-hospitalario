@@ -1,252 +1,225 @@
-// src/app/api/ingresos/route.ts
-// Crea un ingreso hospitalario de forma transaccional.
-// Si cualquier paso falla, no queda información parcial.
-
-import { NextRequest, NextResponse } from "next/server";
+import { jsonObject } from "@/lib/validation";
+import { NextResponse } from "next/server";
+import { and, eq, isNull } from "drizzle-orm";
+import { db } from "@/db";
 import {
   ingresos,
   egresos,
-  camas,
   pacientesRef,
-  diagnosticosIngreso,
+  camas,
   medicos,
+  diagnosticosIngreso,
+  ocupacionesActivas,
+  ubicacionesIngreso,
+  movimientos,
+  servicios,
 } from "@/db/schema";
-import { db } from "@/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { requireWrite } from "@/lib/auth";
+import {
+  fallo,
+  HttpError,
+  identificador,
+  texto,
+  bandera,
+} from "@/lib/validation";
+import { fechaEvento } from "@/lib/hospital";
+import { ubicacion, disponibleDesde } from "@/lib/clinical";
 
-type DiagnosticoInput = {
-  cie10Codigo?: string;
-  cie10Descripcion: string;
-};
-
-class IngresoError extends Error {
-  status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "IngresoError";
-    this.status = status;
-  }
-}
-
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const body = await request.json();
-
-    const {
-      hc,
-      dni,
-      nombres,
-      apellidoPaterno,
-      apellidoMaterno,
-      sexo,
-      fechaNacimiento,
-      camaId,
-      medico,
-      medicoId,
-      tipoIngreso,
-      servicioOrigenId,
-      financiamiento,
-      usaVentilador,
-      usaOxigeno,
-      tieneProblemaJudicial,
-      tieneProblemaSocial,
-      notasEstancia,
-      diagnosticos,
-    }: {
-      hc: string;
-      dni?: string;
-      nombres?: string;
-      apellidoPaterno?: string;
-      apellidoMaterno?: string;
-      sexo?: "M" | "F";
-      fechaNacimiento?: string;
-      camaId: number;
-      medico?: string;
-      medicoId?: number | null;
-      tipoIngreso: "normal" | "transferencia";
-      servicioOrigenId?: number;
-      financiamiento?: string;
-      usaVentilador?: boolean;
-      usaOxigeno?: boolean;
-      tieneProblemaJudicial?: boolean;
-      tieneProblemaSocial?: boolean;
-      notasEstancia?: string;
-      diagnosticos: DiagnosticoInput[];
-    } = body;
-
-    // ---------------------------------------------------------
-    // VALIDACIONES BASICAS
-    // ---------------------------------------------------------
-
-    if (!hc?.trim() || !camaId) {
-      return NextResponse.json(
-        { error: "Faltan campos obligatorios: paciente (HC) y cama" },
-        { status: 400 },
-      );
+    const user = await requireWrite();
+    const b = await jsonObject(request);
+    const hc = texto(b.hc, "Historia clínica", 20);
+    const camaId = identificador(b.camaId, "Cama");
+    const medicoId = identificador(b.medicoId, "Médico");
+    const financiamiento = texto(b.financiamiento, "Financiamiento", 40);
+    const notas = texto(b.notasEstancia, "Notas", 5000, false);
+    if (
+      typeof b.tipoIngreso !== "string" ||
+      !["normal", "transferencia"].includes(b.tipoIngreso)
+    )
+      throw new HttpError("Tipo de ingreso inválido");
+    const servicioOrigenId =
+      b.tipoIngreso === "transferencia"
+        ? identificador(b.servicioOrigenId, "Servicio de origen")
+        : null;
+    let fechaIngreso: Date;
+    try {
+      fechaIngreso = fechaEvento(b.fechaIngreso, "Fecha de ingreso");
+    } catch (e) {
+      throw new HttpError((e as Error).message);
     }
-
-    if (!medicoId) {
-      return NextResponse.json(
-        { error: "Debes seleccionar un médico responsable" },
-        { status: 400 },
-      );
-    }
-
-    if (tipoIngreso !== "normal" && tipoIngreso !== "transferencia") {
-      return NextResponse.json(
-        { error: "Debes seleccionar un tipo de ingreso válido" },
-        { status: 400 },
-      );
-    }
-
-    if (!financiamiento?.trim()) {
-      return NextResponse.json(
-        { error: "Debes seleccionar el financiamiento" },
-        { status: 400 },
-      );
-    }
-
-    if (!diagnosticos || diagnosticos.length === 0) {
-      return NextResponse.json(
-        { error: "Debes indicar al menos un diagnóstico" },
-        { status: 400 },
-      );
-    }
-
-    if (diagnosticos.some((d) => !d?.cie10Descripcion?.trim())) {
-      return NextResponse.json(
-        { error: "Cada diagnóstico debe tener una descripción" },
-        { status: 400 },
-      );
-    }
-
-    if (tipoIngreso === "transferencia" && !servicioOrigenId) {
-      return NextResponse.json(
-        { error: "Un ingreso por transferencia debe indicar el servicio de origen" },
-        { status: 400 },
-      );
-    }
-
-    // ---------------------------------------------------------
-    // TRANSACCION COMPLETA
-    // ---------------------------------------------------------
-
-    const ingresoId = await db.transaction(async (tx) => {
-      const ingresoActivo = await tx
-        .select({ id: ingresos.id })
-        .from(ingresos)
-        .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
-        .where(and(eq(ingresos.hc, hc.trim()), isNull(egresos.id)))
-        .limit(1);
-
-      if (ingresoActivo.length > 0) {
-        throw new IngresoError(
-          "El paciente ya tiene un ingreso hospitalario activo. Registre primero el egreso o traslado correspondiente.",
-          409,
-        );
-      }
-
-      const medicoExistente = await tx
-        .select({ id: medicos.id })
-        .from(medicos)
-        .where(and(eq(medicos.id, medicoId), eq(medicos.activo, true)))
-        .limit(1);
-
-      if (medicoExistente.length === 0) {
-        throw new IngresoError(
-          "El médico seleccionado no existe o se encuentra inactivo.",
-          400,
-        );
-      }
-
-      const reservaCama = await tx
-        .update(camas)
-        .set({ estado: "ocupada" })
-        .where(and(eq(camas.id, camaId), eq(camas.estado, "libre")));
-
-      if (reservaCama[0].affectedRows === 0) {
-        const camaExiste = await tx
-          .select({ id: camas.id })
-          .from(camas)
-          .where(eq(camas.id, camaId))
-          .limit(1);
-
-        if (camaExiste.length === 0) {
-          throw new IngresoError("Cama no encontrada", 404);
-        }
-
-        throw new IngresoError("Esa cama ya no está libre, elige otra", 409);
-      }
-
-      const pacienteExistente = await tx
-        .select({ hc: pacientesRef.hc })
+    if (
+      !Array.isArray(b.diagnosticos) ||
+      !b.diagnosticos.length ||
+      b.diagnosticos.length > 20
+    )
+      throw new HttpError("Indica entre 1 y 20 diagnósticos");
+    if (
+      b.diagnosticos.some(
+        (d) => !d || typeof d !== "object" || Array.isArray(d),
+      )
+    )
+      throw new HttpError("Diagnóstico inválido");
+    const diagnosticos = b.diagnosticos.map(
+      (
+        d: { cie10Codigo?: unknown; cie10Descripcion?: unknown },
+        i: number,
+      ) => ({
+        orden: i + 1,
+        cie10Codigo: texto(d.cie10Codigo, "Código CIE-10", 15, false) || null,
+        cie10Descripcion: texto(d.cie10Descripcion, "Diagnóstico", 250),
+      }),
+    );
+    const indicadores = {
+      usaOxigeno: bandera(b.usaOxigeno),
+      usaVentilador: bandera(b.usaVentilador),
+      tieneProblemaJudicial: bandera(b.tieneProblemaJudicial),
+      tieneProblemaSocial: bandera(b.tieneProblemaSocial),
+    };
+    const id = await db.transaction(async (tx) => {
+      // Crear o bloquear la misma fila de paciente serializa admisiones concurrentes.
+      const [existing] = await tx
+        .select()
         .from(pacientesRef)
-        .where(eq(pacientesRef.hc, hc.trim()))
-        .limit(1);
-
-      if (pacienteExistente.length === 0) {
-        if (!nombres?.trim() || !apellidoPaterno?.trim() || !sexo) {
-          throw new IngresoError(
-            "El paciente no existe. Debes indicar al menos nombres, apellido paterno y sexo para crearlo.",
-            400,
-          );
+        .where(eq(pacientesRef.hc, hc))
+        .for("update");
+      if (!existing) {
+        const nombres = texto(b.nombres, "Nombres", 100);
+        const apellidoPaterno = texto(
+          b.apellidoPaterno,
+          "Apellido paterno",
+          100,
+        );
+        if (typeof b.sexo !== "string" || !["M", "F"].includes(b.sexo))
+          throw new HttpError("Sexo inválido");
+        let nacimiento: Date | undefined;
+        if (b.fechaNacimiento) {
+          if (
+            typeof b.fechaNacimiento !== "string" ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(b.fechaNacimiento)
+          )
+            throw new HttpError("Fecha de nacimiento inválida");
+          nacimiento = new Date(`${b.fechaNacimiento}T00:00:00Z`);
+          if (
+            !Number.isFinite(nacimiento.getTime()) ||
+            nacimiento.toISOString().slice(0, 10) !== b.fechaNacimiento ||
+            nacimiento > fechaIngreso
+          )
+            throw new HttpError("Fecha de nacimiento inválida");
         }
-
         await tx.insert(pacientesRef).values({
-          hc: hc.trim(),
-          dni,
-          nombres: nombres.trim(),
-          apellidoPaterno: apellidoPaterno.trim(),
-          apellidoMaterno,
-          sexo,
-          fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : undefined,
+          hc,
+          nombres,
+          apellidoPaterno,
+          apellidoMaterno:
+            texto(b.apellidoMaterno, "Apellido materno", 100, false) || null,
+          dni: texto(b.dni, "DNI", 15, false) || null,
+          sexo: String(b.sexo),
+          fechaNacimiento: nacimiento,
           origenDato: "manual",
           fechaActualizacion: new Date(),
         });
       }
-
-      const resultIngreso = await tx.insert(ingresos).values({
-        hc: hc.trim(),
+      const activos = await tx
+        .select({ id: ingresos.id })
+        .from(ingresos)
+        .leftJoin(egresos, eq(egresos.ingresoId, ingresos.id))
+        .where(and(eq(ingresos.hc, hc), isNull(egresos.id)))
+        .limit(1);
+      if (activos.length)
+        throw new HttpError(
+          "El paciente ya está hospitalizado. Usa la ficha para trasladarlo.",
+          409,
+        );
+      const [doctor] = await tx
+        .select()
+        .from(medicos)
+        .where(and(eq(medicos.id, medicoId), eq(medicos.activo, true)));
+      if (!doctor) throw new HttpError("Médico no disponible");
+      const u = await ubicacion(tx, camaId);
+      if (u.estado === "inoperativa")
+        throw new HttpError("La cama está inoperativa", 409);
+      const [ocupada] = await tx
+        .select()
+        .from(ocupacionesActivas)
+        .where(eq(ocupacionesActivas.camaId, camaId));
+      if (ocupada)
+        throw new HttpError(
+          "La cama ya está ocupada. Actualiza y selecciona otra.",
+          409,
+        );
+      await disponibleDesde(tx, camaId, fechaIngreso);
+      if (servicioOrigenId) {
+        const [origen] = await tx
+          .select()
+          .from(servicios)
+          .where(eq(servicios.id, servicioOrigenId));
+        if (!origen || servicioOrigenId === u.servicioId)
+          throw new HttpError("Servicio de origen inválido");
+      }
+      const result = await tx.insert(ingresos).values({
+        hc,
         camaId,
-        fechaIngreso: new Date(),
-        medico,
+        fechaIngreso,
+        fechaRegistro: new Date(),
+        registradoPor: user.usuario,
         medicoId,
-        tipoIngreso,
-        servicioOrigenId: tipoIngreso === "transferencia" ? servicioOrigenId : null,
-        financiamiento: financiamiento.trim(),
-        usaVentilador: !!usaVentilador,
-        usaOxigeno: !!usaOxigeno,
-        tieneProblemaJudicial: !!tieneProblemaJudicial,
-        tieneProblemaSocial: !!tieneProblemaSocial,
-        notasEstancia,
+        medico: [doctor.nombres, doctor.apellidoPaterno, doctor.apellidoMaterno]
+          .filter(Boolean)
+          .join(" ")
+          .slice(0, 100),
+        tipoIngreso: String(b.tipoIngreso),
+        servicioOrigenId,
+        financiamiento,
+        notasEstancia: notas || null,
+        ...indicadores,
+        servicioIngresoId: u.servicioId,
+        servicioIngreso: u.servicio,
+        especialidadIngreso: u.especialidad,
+        camaIngreso: u.cama,
       });
-
-      const nuevoIngresoId = resultIngreso[0].insertId;
-
-      await tx.insert(diagnosticosIngreso).values(
-        diagnosticos.map((d, i) => ({
-          ingresoId: nuevoIngresoId,
-          orden: i + 1,
-          cie10Codigo: d.cie10Codigo?.trim() || null,
-          cie10Descripcion: d.cie10Descripcion.trim(),
-        })),
-      );
-
-      return nuevoIngresoId;
+      const ingresoId = result[0].insertId;
+      await tx.insert(ocupacionesActivas).values({ ingresoId, hc, camaId });
+      await tx
+        .update(camas)
+        .set({ estado: "ocupada" })
+        .where(eq(camas.id, camaId));
+      await tx.insert(ubicacionesIngreso).values({
+        ingresoId,
+        camaId,
+        servicioId: u.servicioId,
+        servicio: u.servicio,
+        especialidad: u.especialidad,
+        cama: u.cama,
+        desde: fechaIngreso,
+      });
+      await tx
+        .insert(diagnosticosIngreso)
+        .values(
+          diagnosticos.map(
+            (d: {
+              orden: number;
+              cie10Codigo: string | null;
+              cie10Descripcion: string;
+            }) => ({ ...d, ingresoId }),
+          ),
+        );
+      await tx.insert(movimientos).values({
+        ingresoId,
+        camaDestinoId: camaId,
+        fecha: fechaIngreso,
+        fechaRegistro: new Date(),
+        tipo: "ingreso",
+        responsable: user.usuario,
+        detalle: JSON.stringify({
+          ubicacion: u.servicio + " / " + u.especialidad + " / " + u.cama,
+        }),
+      });
+      return ingresoId;
     });
-
-    return NextResponse.json({ id: ingresoId }, { status: 201 });
-  } catch (err) {
-    console.error(err);
-
-    if (err instanceof IngresoError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
-    }
-
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Error desconocido" },
-      { status: 500 },
-    );
+    return NextResponse.json({ id }, { status: 201 });
+  } catch (e) {
+    return fallo(e);
   }
 }

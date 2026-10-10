@@ -1,281 +1,127 @@
+import { jsonObject } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { camas, egresos, ingresos } from "@/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
-
+import { camas, especialidades, ocupacionesActivas } from "@/db/schema";
+import { requireUser, requireWrite } from "@/lib/auth";
+import { fallo, HttpError, identificador, texto } from "@/lib/validation";
 export async function GET(request: NextRequest) {
   try {
-    const especialidadId = request.nextUrl.searchParams.get(
-      "especialidadId"
+    await requireUser();
+    const especialidadId = identificador(
+      request.nextUrl.searchParams.get("especialidadId"),
+      "Especialidad",
     );
-
-    const mostrarTodas =
-      request.nextUrl.searchParams.get("all") === "true";
-
-    if (!especialidadId) {
-      return NextResponse.json(
-        { error: "Falta el parametro especialidadId" },
-        { status: 400 }
-      );
-    }
-
-    const condicion = mostrarTodas
-      ? eq(
-          camas.especialidadId,
-          Number(especialidadId)
-        )
-      : and(
-          eq(
-            camas.especialidadId,
-            Number(especialidadId)
-          ),
-          eq(camas.estado, "libre")
-        );
-
-    const data = await db
-      .select()
-      .from(camas)
-      .where(condicion);
-
-    return NextResponse.json(data);
-  } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-
-    const numero = String(body.numero ?? "").trim();
-    const ubicacion = String(
-      body.ubicacion ?? ""
-    ).trim() || null;
-
-    const especialidadId = Number(
-      body.especialidadId
-    );
-
-    const estado = String(
-      body.estado ?? "libre"
-    ).trim();
-
-    const estadosValidos = [
-      "libre",
-      "ocupada",
-      "inoperativa",
-    ];
-
-    if (!numero || !especialidadId) {
-      return NextResponse.json(
-        {
-          error:
-            "Número y especialidad son obligatorios",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!estadosValidos.includes(estado)) {
-      return NextResponse.json(
-        { error: "Estado de cama no válido" },
-        { status: 400 }
-      );
-    }
-
-    const existente = await db
-      .select()
-      .from(camas)
-      .where(
-        and(
-          eq(camas.numero, numero),
-          eq(
-            camas.especialidadId,
-            especialidadId
-          )
-        )
-      );
-
-    if (existente.length > 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Ya existe una cama con ese número en esta especialidad",
-        },
-        { status: 409 }
-      );
-    }
-
-    const result = await db
-      .insert(camas)
-      .values({
-        numero,
-        ubicacion,
-        especialidadId,
-        estado,
-      });
-
-    return NextResponse.json(
-      {
-        id: result[0].insertId,
-        numero,
-        ubicacion,
-        especialidadId,
-        estado,
-      },
-      { status: 201 }
-    );
-  } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json();
-
-    const id = Number(body.id);
-    const numero = String(body.numero ?? "").trim();
-    const ubicacion =
-      String(body.ubicacion ?? "").trim() || null;
-    const especialidadId = Number(
-      body.especialidadId
-    );
-    const estado = String(
-      body.estado ?? ""
-    ).trim();
-
-    const estadosValidos = [
-      "libre",
-      "ocupada",
-      "inoperativa",
-    ];
-
-    if (!id || !numero || !especialidadId) {
-      return NextResponse.json(
-        {
-          error:
-            "ID, número y especialidad son obligatorios",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!estadosValidos.includes(estado)) {
-      return NextResponse.json(
-        { error: "Estado de cama no válido" },
-        { status: 400 }
-      );
-    }
-
-    const existente = await db
-      .select()
-      .from(camas)
-      .where(eq(camas.id, id))
-      .limit(1);
-
-    if (existente.length === 0) {
-      return NextResponse.json(
-        { error: "Cama no encontrada" },
-        { status: 404 }
-      );
-    }
-
-    const estadoActual = existente[0].estado;
-
-    const ingresoActivo = await db
-      .select({ id: ingresos.id })
-      .from(ingresos)
-      .leftJoin(
-        egresos,
-        eq(egresos.ingresoId, ingresos.id)
-      )
-      .where(
-        and(
-          eq(ingresos.camaId, id),
-          isNull(egresos.id)
-        )
-      )
-      .limit(1);
-
-    const tieneIngresoActivo =
-      ingresoActivo.length > 0;
-
-    if (
-      tieneIngresoActivo &&
-      estado !== "ocupada"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "No se puede cambiar el estado de una cama con un paciente hospitalizado. Registre primero el egreso o traslado correspondiente.",
-        },
-        { status: 409 }
-      );
-    }
-
-    if (
-      estado === "ocupada" &&
-      !tieneIngresoActivo
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "No se puede marcar una cama como ocupada si no tiene un paciente hospitalizado activo.",
-        },
-        { status: 409 }
-      );
-    }
-
-    await db
-      .update(camas)
-      .set({
-        numero,
-        ubicacion,
-        especialidadId,
-        estado,
+    const all = request.nextUrl.searchParams.get("all") === "true";
+    const rows = await db
+      .select({
+        id: camas.id,
+        numero: camas.numero,
+        ubicacion: camas.ubicacion,
+        especialidadId: camas.especialidadId,
+        estado: sql<string>`CASE WHEN ${ocupacionesActivas.ingresoId} IS NOT NULL THEN 'ocupada' WHEN ${camas.estado} = 'inoperativa' THEN 'inoperativa' ELSE 'libre' END`,
       })
-      .where(eq(camas.id, id));
-
-    return NextResponse.json({
-      id,
-      numero,
-      ubicacion,
-      especialidadId,
-      estado,
-      estadoAnterior: estadoActual,
-    });
-  } catch (err) {
-    console.error(err);
-
-    return NextResponse.json(
-      {
-        error:
-          err instanceof Error
-            ? err.message
-            : "Error desconocido",
-      },
-      { status: 500 }
-    );
+      .from(camas)
+      .leftJoin(ocupacionesActivas, eq(ocupacionesActivas.camaId, camas.id))
+      .where(
+        and(
+          eq(camas.especialidadId, especialidadId),
+          ...(all
+            ? []
+            : [
+                isNull(ocupacionesActivas.ingresoId),
+                ne(camas.estado, "inoperativa"),
+              ]),
+        ),
+      )
+      .orderBy(camas.numero);
+    return NextResponse.json(rows);
+  } catch (e) {
+    return fallo(e);
   }
+}
+async function guardar(request: Request, editar: boolean) {
+  try {
+    await requireWrite(true);
+    const b = await jsonObject(request);
+    const numero = texto(b.numero, "Número de cama", 10);
+    const ubicacion = texto(b.ubicacion, "Ubicación", 80, false) || null;
+    const especialidadId = identificador(b.especialidadId, "Especialidad");
+    if (
+      typeof b.estado !== "string" ||
+      !["libre", "ocupada", "inoperativa"].includes(b.estado)
+    )
+      throw new HttpError("Estado inválido");
+    const result = await db.transaction(async (tx) => {
+      const [especialidad] = await tx
+        .select()
+        .from(especialidades)
+        .where(eq(especialidades.id, especialidadId))
+        .for("update");
+      if (!especialidad) throw new HttpError("Especialidad no encontrada", 404);
+      if (!editar) {
+        if (b.estado === "ocupada")
+          throw new HttpError("Una cama se ocupa al asignarle un paciente");
+        const res = await tx.insert(camas).values({
+          numero,
+          ubicacion,
+          especialidadId,
+          estado: String(b.estado),
+        });
+        return {
+          id: res[0].insertId,
+          numero,
+          ubicacion,
+          especialidadId,
+          estado: String(b.estado),
+        };
+      }
+      const id = identificador(b.id);
+      const [actual] = await tx
+        .select()
+        .from(camas)
+        .where(eq(camas.id, id))
+        .for("update");
+      if (!actual) throw new HttpError("Cama no encontrada", 404);
+      const [activa] = await tx
+        .select()
+        .from(ocupacionesActivas)
+        .where(eq(ocupacionesActivas.camaId, id));
+      if (
+        activa &&
+        (b.estado !== "ocupada" ||
+          actual.especialidadId !== especialidadId ||
+          actual.numero !== numero)
+      )
+        throw new HttpError(
+          "Traslada o egresa al paciente antes de cambiar el estado, número o especialidad de su cama",
+          409,
+        );
+      if (!activa && b.estado === "ocupada")
+        throw new HttpError(
+          "La cama se ocupa mediante un ingreso o traslado",
+          409,
+        );
+      await tx
+        .update(camas)
+        .set({ numero, ubicacion, especialidadId, estado: String(b.estado) })
+        .where(eq(camas.id, id));
+      return {
+        id,
+        numero,
+        ubicacion,
+        especialidadId,
+        estado: String(b.estado),
+      };
+    });
+    return NextResponse.json(result, { status: editar ? 200 : 201 });
+  } catch (e) {
+    return fallo(e);
+  }
+}
+export async function POST(request: Request) {
+  return guardar(request, false);
+}
+export async function PATCH(request: Request) {
+  return guardar(request, true);
 }

@@ -42,3 +42,5 @@ next-env.d.ts
 
 # datos de carga local
 /data/
+
+!.env.example

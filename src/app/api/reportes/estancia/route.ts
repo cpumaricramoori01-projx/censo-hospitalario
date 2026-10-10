@@ -1,10 +1,22 @@
+import { periodoReporte, diasEstancia } from "@/lib/hospital";
+import { HttpError, identificador } from "@/lib/validation";
+import { requireUser } from "@/lib/auth";
+import { fallo } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
-import { and, asc, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { ingresos, egresos, pacientesRef, camas, especialidades, servicios } from "@/db/schema";
+import {
+  ingresos,
+  egresos,
+  pacientesRef,
+  camas,
+  especialidades,
+  servicios,
+} from "@/db/schema";
 
 export async function GET(request: NextRequest) {
   try {
+    await requireUser();
     const { searchParams } = new URL(request.url);
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
@@ -13,11 +25,25 @@ export async function GET(request: NextRequest) {
     const minimo = Number(searchParams.get("minimo") || "0");
 
     const filtros = [];
-    if (desde) filtros.push(gte(ingresos.fechaIngreso, new Date(`${desde}T00:00:00`)));
-    if (hasta) filtros.push(lte(ingresos.fechaIngreso, new Date(`${hasta}T23:59:59.999`)));
-    if (servicioId && /^\d+$/.test(servicioId)) filtros.push(eq(servicios.id, Number(servicioId)));
+    let periodo;
+    try {
+      periodo = periodoReporte(desde, hasta);
+    } catch (e) {
+      throw new HttpError((e as Error).message);
+    }
+    if (periodo.inicio)
+      filtros.push(gte(ingresos.fechaIngreso, periodo.inicio));
+    if (periodo.fin) filtros.push(lt(ingresos.fechaIngreso, periodo.fin));
+    if (servicioId && servicioId !== "todos")
+      filtros.push(
+        sql`COALESCE(${egresos.servicioEgresoId}, ${servicios.id}) = ${identificador(servicioId)}`,
+      );
+    if (estado && !["todos", "activa", "egresada"].includes(estado))
+      throw new HttpError("Estado inválido");
+    if (!Number.isFinite(minimo) || minimo < 0)
+      throw new HttpError("Estancia mínima inválida");
     if (estado === "activa") filtros.push(isNull(egresos.id));
-    if (estado === "egresada") filtros.push(eq(egresos.id, egresos.id));
+    if (estado === "egresada") filtros.push(isNotNull(egresos.id));
 
     const rows = await db
       .select({
@@ -28,10 +54,10 @@ export async function GET(request: NextRequest) {
         apellidoMaterno: pacientesRef.apellidoMaterno,
         fechaIngreso: ingresos.fechaIngreso,
         fechaEgreso: egresos.fechaEgreso,
-        cama: camas.numero,
-        especialidad: especialidades.nombre,
-        servicioId: servicios.id,
-        servicio: servicios.nombre,
+        cama: sql<string>`COALESCE(${egresos.camaEgreso}, ${camas.numero})`,
+        especialidad: sql<string>`COALESCE(${egresos.especialidadEgreso}, ${especialidades.nombre})`,
+        servicioId: sql<number>`COALESCE(${egresos.servicioEgresoId}, ${servicios.id})`,
+        servicio: sql<string>`COALESCE(${egresos.servicioEgreso}, ${servicios.nombre})`,
         tipoIngreso: ingresos.tipoIngreso,
         tipoEgreso: egresos.tipoEgreso,
       })
@@ -49,32 +75,45 @@ export async function GET(request: NextRequest) {
       .map((f) => {
         const inicio = new Date(f.fechaIngreso).getTime();
         const fin = f.fechaEgreso ? new Date(f.fechaEgreso).getTime() : ahora;
-        const diasEstancia = Number.isFinite(inicio) && Number.isFinite(fin) ? Math.max(0, Math.floor((fin - inicio) / 86400000)) : 0;
+        const duracion = diasEstancia(new Date(inicio), new Date(fin));
         const activa = !f.fechaEgreso;
         return {
           ...f,
-          paciente: [f.nombres, f.apellidoPaterno, f.apellidoMaterno].filter(Boolean).join(" "),
+          paciente: [f.nombres, f.apellidoPaterno, f.apellidoMaterno]
+            .filter(Boolean)
+            .join(" "),
           estado: activa ? "activa" : "egresada",
           estadoTexto: activa ? "Activa" : "Egresada",
-          diasEstancia,
-          estanciaProlongada: diasEstancia >= 15,
+          diasEstancia: duracion,
+          estanciaProlongada: duracion >= 15,
         };
       })
       .filter((f) => diasEstanciaMinima(f.diasEstancia, minimo));
 
-    const promedio = resultado.length ? resultado.reduce((sum, f) => sum + f.diasEstancia, 0) / resultado.length : 0;
+    const terminadas = resultado.filter((f) => f.estado === "egresada");
+    const activas = resultado.filter((f) => f.estado === "activa");
+    const media = (datos: typeof resultado) =>
+      datos.length
+        ? Number(
+            (
+              datos.reduce((sum, f) => sum + f.diasEstancia, 0) / datos.length
+            ).toFixed(1),
+          )
+        : 0;
+    const promedio = media(terminadas);
     const resumen = {
       total: resultado.length,
       activas: resultado.filter((f) => f.estado === "activa").length,
       egresadas: resultado.filter((f) => f.estado === "egresada").length,
       prolongadas: resultado.filter((f) => f.estanciaProlongada).length,
-      promedio: Number(promedio.toFixed(1)),
+      promedio,
+      promedioEgresadas: promedio,
+      promedioActivas: media(activas),
     };
 
     return NextResponse.json({ datos: resultado, resumen });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudo consultar el reporte de estancia hospitalaria." }, { status: 500 });
+    return fallo(error);
   }
 }
 
