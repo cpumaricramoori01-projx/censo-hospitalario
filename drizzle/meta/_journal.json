@@ -43,6 +43,13 @@
       "when": 1791653152356,
       "tag": "0005_giant_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1791655162213,
+      "tag": "0006_opposite_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

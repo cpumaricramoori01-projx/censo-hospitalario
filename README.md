@@ -67,7 +67,7 @@ npm run dev
 La integración se prueba únicamente en MySQL temporal `127.0.0.1:33306/censo_test`, nunca en producción:
 
 1. Crea un MySQL vacío y configura `.env.local` con las cuentas ficticias `admin.test`, `operador.test`, `consulta.test`, contraseña `local-test-password-123`, secreto de prueba y `LEGACY_TIME_ZONE=UTC`.
-2. Ejecuta `node --env-file=.env.local tests/prepare-db.mjs` y `npm run db:upgrade`, luego `npm run auth:install` para importar las tres cuentas de prueba.
+2. Ejecuta `node --env-file=.env.local tests/prepare-db.mjs` y `npm run db:upgrade`, luego `npm run auth:install` para importar las tres cuentas de prueba y `npm run db:census` para preparar configuración e historial de camas.
 3. Inicia la aplicación en el puerto 3100: `npm run start -- -p 3100` después de compilar.
 4. Ejecuta `npm run test:integration`. Verifica permisos, origen, concurrencia, rollback, traslados, egresos, reportes históricos y límite de intentos. La base de prueba queda con datos ficticios; debe recrearse para repetir la suite.
 
@@ -76,6 +76,10 @@ Los scripts de prueba verifican host, puerto y nombre de base antes de operar. `
 ## Credenciales del repositorio anterior
 
 Las credenciales se mantienen en secretos protegidos del hosting y Codespaces, fuera de los archivos `.env` del proyecto. Si tuvo credenciales válidas, **reemplázalas en el proveedor y en el hosting**, porque retirarlo del commit actual no las elimina del historial público. No se ha reescrito el historial ni cambiado credenciales de servicios externos.
+
+## Censo histórico, cierres e indicadores
+
+Consulta la [guía de operación](docs/operacion-del-censo.md) para las pantallas nuevas, reglas de conteo y correcciones con versiones. Después de la migración de usuarios, `npm run db:census` instala la migración 0006 e inicia el historial de capacidad sin modificar pacientes. En la BD temporal, ejecuta también `npm run test:operations` después de la integración anterior.
 
 ## Identidad visual
 

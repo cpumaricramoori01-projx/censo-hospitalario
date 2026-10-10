@@ -15,7 +15,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
   if (
-    (path === "/estructura" || path === "/test" || path === "/usuarios") &&
+    (path === "/estructura" || path === "/test" || path === "/usuarios" || path === "/auditoria" || path === "/configuracion") &&
     user.rol !== "administrador"
   )
     return NextResponse.redirect(new URL("/panel", request.url));

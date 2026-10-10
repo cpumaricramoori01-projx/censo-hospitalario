@@ -1,97 +1,83 @@
-import { jsonObject } from "@/lib/validation";
-import { requireUser, requireWrite } from "@/lib/auth";
-import { fallo, texto, identificador } from "@/lib/validation";
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { servicios } from "@/db/schema";
+import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-
+import { db } from "@/db";
+import { servicios, camas, especialidades } from "@/db/schema";
+import { requireUser, requireWrite } from "@/lib/auth";
+import {
+  fallo,
+  texto,
+  identificador,
+  jsonObject,
+  HttpError,
+} from "@/lib/validation";
+import { lockCensus, recordCapacity, audit } from "@/lib/census-store";
 export async function GET() {
   try {
     await requireUser();
-    const data = await db.select().from(servicios);
-
-    return NextResponse.json(data);
-  } catch (err) {
-    return fallo(err);
+    return NextResponse.json(await db.select().from(servicios));
+  } catch (e) {
+    return fallo(e);
   }
 }
-
-export async function POST(request: NextRequest) {
+async function save(request: Request, edit: boolean) {
   try {
-    await requireWrite(true);
-    const body = await jsonObject(request);
-    const nombre = texto(body.nombre, "Servicio", 60);
-
-    if (!nombre) {
-      return NextResponse.json(
-        { error: "El nombre del servicio es obligatorio" },
-        { status: 400 },
-      );
-    }
-
-    const existente = await db
-      .select()
-      .from(servicios)
-      .where(eq(servicios.nombre, nombre));
-
-    if (existente.length > 0) {
-      return NextResponse.json(
-        { error: "Ya existe un servicio con ese nombre" },
-        { status: 409 },
-      );
-    }
-
-    const result = await db.insert(servicios).values({
-      nombre,
-    });
-
-    return NextResponse.json(
-      {
-        id: result[0].insertId,
+    const user = await requireWrite(true);
+    const b = await jsonObject(request);
+    const nombre = texto(b.nombre, "Servicio", 60);
+    const id = edit ? identificador(b.id) : null;
+    const result = await db.transaction(async (tx) => {
+      await lockCensus(tx);
+      const existing = await tx
+        .select()
+        .from(servicios)
+        .where(eq(servicios.nombre, nombre));
+      if (existing.some((s) => s.id !== id))
+        throw new HttpError("Ya existe un servicio con ese nombre", 409);
+      if (!id) {
+        const res = await tx.insert(servicios).values({ nombre });
+        await audit(
+          tx,
+          user.usuario,
+          "servicio",
+          String(res[0].insertId),
+          "crear",
+          null,
+          { nombre },
+        );
+        return { id: res[0].insertId, nombre };
+      }
+      const [old] = await tx
+        .select()
+        .from(servicios)
+        .where(eq(servicios.id, id));
+      if (!old) throw new HttpError("Servicio no encontrado", 404);
+      await tx.update(servicios).set({ nombre }).where(eq(servicios.id, id));
+      const beds = await tx
+        .select({ id: camas.id })
+        .from(camas)
+        .innerJoin(especialidades, eq(camas.especialidadId, especialidades.id))
+        .where(eq(especialidades.servicioId, id))
+        .orderBy(camas.id);
+      for (const bed of beds)
+        await recordCapacity(
+          tx,
+          bed.id,
+          user.usuario,
+          "Cambio del nombre del servicio",
+        );
+      await audit(tx, user.usuario, "servicio", String(id), "actualizar", old, {
         nombre,
-      },
-      { status: 201 },
-    );
-  } catch (err) {
-    return fallo(err);
+      });
+      return { id, nombre };
+    });
+    return NextResponse.json(result, { status: edit ? 200 : 201 });
+  } catch (e) {
+    return fallo(e);
   }
 }
-
-export async function PATCH(request: NextRequest) {
-  try {
-    await requireWrite(true);
-    const body = await jsonObject(request);
-
-    const id = identificador(body.id);
-    const nombre = texto(body.nombre, "Servicio", 60);
-
-    if (!id || !nombre) {
-      return NextResponse.json(
-        { error: "ID y nombre son obligatorios" },
-        { status: 400 },
-      );
-    }
-
-    const existente = await db
-      .select()
-      .from(servicios)
-      .where(eq(servicios.id, id));
-
-    if (existente.length === 0) {
-      return NextResponse.json(
-        { error: "Servicio no encontrado" },
-        { status: 404 },
-      );
-    }
-
-    await db.update(servicios).set({ nombre }).where(eq(servicios.id, id));
-
-    return NextResponse.json({
-      id,
-      nombre,
-    });
-  } catch (err) {
-    return fallo(err);
-  }
+export async function POST(request: Request) {
+  return save(request, false);
+}
+export async function PATCH(request: Request) {
+  return save(request, true);
 }

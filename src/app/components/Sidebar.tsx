@@ -13,6 +13,13 @@ const items: {
 }[] = [
   { label: "Panel principal", href: "/panel", icon: "dashboard" },
   { label: "Censo actual", href: "/censo", icon: "patient" },
+  { label: "Censo histórico", href: "/censo/historico", icon: "patient" },
+  { label: "Parte diario", href: "/censo/parte", icon: "report" },
+  { label: "Historial de camas", href: "/censo/camas", icon: "bed" },
+  { label: "Pendientes", href: "/pendientes", icon: "report" },
+  { label: "Indicadores mensuales", href: "/reportes/indicadores", icon: "report" },
+  { label: "Auditoría", href: "/auditoria", icon: "settings", role: "admin" },
+  { label: "Configuración", href: "/configuracion", icon: "settings", role: "admin" },
   {
     label: "Registrar ingreso",
     href: "/ingresos/nuevo",
@@ -77,7 +84,7 @@ export default function Sidebar() {
               <Link
                 href={i.href}
                 key={i.href}
-                className={`sidebar-link ${path === i.href || path.startsWith(i.href + "/") ? "is-active" : ""}`}
+                className={`sidebar-link ${path === i.href || (i.href !== "/censo" && i.href !== "/reportes" && path.startsWith(i.href + "/")) ? "is-active" : ""}`}
                 aria-current={path === i.href ? "page" : undefined}
               >
                 <Icon name={i.icon} />

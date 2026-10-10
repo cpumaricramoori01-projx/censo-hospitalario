@@ -7,6 +7,7 @@ import {
   int,
   boolean,
   text,
+  mediumtext,
   foreignKey,
   uniqueIndex,
   index,
@@ -325,3 +326,50 @@ export const usuarios = mysqlTable("usuarios", {
   creadoEn: datetime("creado_en").notNull(),
   actualizadoEn: datetime("actualizado_en").notNull(),
 });
+
+
+export const configuracionCenso = mysqlTable("configuracion_censo", {
+  id: int("id").primaryKey(),
+  horaCorte: varchar("hora_corte", { length: 5 }).notNull().default("00:00"),
+  alertaEstancia: int("alerta_estancia").notNull().default(14),
+  inicioCapacidad: datetime("inicio_capacidad").notNull(),
+});
+export const periodosCama = mysqlTable("periodos_cama", {
+  id: int("id").primaryKey().autoincrement(),
+  camaId: int("cama_id").notNull().references(() => camas.id),
+  servicioId: int("servicio_id").notNull(),
+  servicio: varchar("servicio", { length: 60 }).notNull(),
+  especialidad: varchar("especialidad", { length: 80 }).notNull(),
+  cama: varchar("cama", { length: 10 }).notNull(),
+  habilitada: boolean("habilitada").notNull(),
+  motivo: text("motivo").notNull(),
+  desde: datetime("desde").notNull(),
+  hasta: datetime("hasta"),
+  responsable: varchar("responsable", { length: 100 }).notNull(),
+}, t => ({ camaFecha: index("periodos_cama_fecha_idx").on(t.camaId, t.desde) }));
+export const diasCenso = mysqlTable("dias_censo", {
+  fecha: varchar("fecha", { length: 10 }).primaryKey(),
+  estado: varchar("estado", { length: 10 }).notNull(),
+  version: int("version").notNull().default(0),
+});
+export const partesCenso = mysqlTable("partes_censo", {
+  id: int("id").primaryKey().autoincrement(),
+  fecha: varchar("fecha", { length: 10 }).notNull().references(() => diasCenso.fecha),
+  version: int("version").notNull(),
+  contenido: mediumtext("contenido").notNull(),
+  huella: varchar("huella", { length: 64 }).notNull(),
+  motivo: text("motivo").notNull(),
+  responsable: varchar("responsable", { length: 100 }).notNull(),
+  registradoEn: datetime("registrado_en").notNull(),
+}, t => ({ revision: uniqueIndex("partes_censo_version_uq").on(t.fecha, t.version) }));
+export const auditoriaSistema = mysqlTable("auditoria_sistema", {
+  id: int("id").primaryKey().autoincrement(),
+  entidad: varchar("entidad", { length: 30 }).notNull(),
+  referencia: varchar("referencia", { length: 64 }).notNull(),
+  accion: varchar("accion", { length: 30 }).notNull(),
+  responsable: varchar("responsable", { length: 100 }).notNull(),
+  motivo: text("motivo"),
+  antes: text("antes"),
+  despues: text("despues"),
+  registradoEn: datetime("registrado_en").notNull(),
+}, t => ({ fechaIdx: index("auditoria_sistema_fecha_idx").on(t.registradoEn) }));

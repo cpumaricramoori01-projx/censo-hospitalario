@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, or, gt } from "drizzle-orm";
+import { and, desc, eq, isNull, or, gt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   camas,
@@ -7,6 +7,8 @@ import {
   ingresos,
   egresos,
   ubicacionesIngreso,
+  periodosCama,
+  configuracionCenso,
 } from "@/db/schema";
 import { HttpError } from "./validation";
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -65,6 +67,45 @@ export async function disponibleDesde(
   camaId: number,
   fecha: Date,
 ) {
+  const blocked = await tx
+    .select({ id: periodosCama.id })
+    .from(periodosCama)
+    .where(
+      and(
+        eq(periodosCama.camaId, camaId),
+        eq(periodosCama.habilitada, false),
+        or(isNull(periodosCama.hasta), gt(periodosCama.hasta, fecha)),
+      ),
+    )
+    .limit(1);
+  if (blocked.length)
+    throw new HttpError(
+      "La estancia coincide con un período de bloqueo de esta cama",
+      409,
+    );
+  const [config] = await tx
+    .select()
+    .from(configuracionCenso)
+    .where(eq(configuracionCenso.id, 1));
+  if (config && fecha >= config.inicioCapacidad) {
+    const [known] = await tx
+      .select({ id: periodosCama.id })
+      .from(periodosCama)
+      .where(
+        and(
+          eq(periodosCama.camaId, camaId),
+          eq(periodosCama.habilitada, true),
+          or(isNull(periodosCama.hasta), gt(periodosCama.hasta, fecha)),
+          sql`${periodosCama.desde} <= ${fecha}`,
+        ),
+      )
+      .limit(1);
+    if (!known)
+      throw new HttpError(
+        "No hay capacidad registrada de la cama para esa fecha",
+        409,
+      );
+  }
   const rows = await tx
     .select({ id: ubicacionesIngreso.id })
     .from(ubicacionesIngreso)

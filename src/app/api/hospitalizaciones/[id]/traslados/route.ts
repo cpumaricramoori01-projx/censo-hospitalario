@@ -1,3 +1,4 @@
+import { lockCensus, writableEvent } from "@/lib/census-store";
 import { jsonObject } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
@@ -24,6 +25,7 @@ export async function POST(
     const camaId = identificador(b.camaId, "Cama de destino");
     const motivo = texto(b.motivo, "Motivo", 1000);
     await db.transaction(async (tx) => {
+      await lockCensus(tx);
       const { ingreso, periodo } = await ingresoAbierto(tx, id);
       if (camaId === ingreso.camaId)
         throw new HttpError("Selecciona una cama diferente");
@@ -33,6 +35,7 @@ export async function POST(
       } catch (e) {
         throw new HttpError((e as Error).message);
       }
+      await writableEvent(tx, fecha);
       // Bloquear camas en orden estable evita carreras con ingresos y cambios administrativos.
       await tx
         .select()

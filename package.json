@@ -15,7 +15,9 @@
     "db:check": "node --env-file-if-exists=.env.local scripts/check-data.mjs",
     "db:upgrade": "node --env-file-if-exists=.env.local scripts/upgrade.mjs",
     "test:integration": "node --env-file-if-exists=.env.local tests/integration.mjs",
-    "auth:install": "node --env-file-if-exists=.env.local scripts/install-users.mjs"
+    "auth:install": "node --env-file-if-exists=.env.local scripts/install-users.mjs",
+    "db:census": "node --env-file-if-exists=.env.local scripts/install-census.mjs",
+    "test:operations": "node --env-file-if-exists=.env.local tests/operations.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

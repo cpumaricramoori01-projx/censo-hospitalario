@@ -3,6 +3,8 @@ import { use } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "@/app/components/Icon";
+import PatientReview from "@/app/components/PatientReview";
+import DateCorrection from "@/app/components/DateCorrection";
 import ClinicalLookup from "@/app/components/ClinicalLookup";
 import { fechaHospital, fechaLocalInput, diasEstancia } from "@/lib/hospital";
 type Flags = {
@@ -39,6 +41,7 @@ type Detail = {
     apellidoPaterno: string;
     apellidoMaterno: string | null;
     dni: string | null;
+    fechaNacimiento: string | null;
   };
   egreso: { fechaEgreso: string; tipoEgreso: string } | null;
   medico: {
@@ -628,6 +631,8 @@ export default function DetailPage({
             versión se identifican como legacy.
           </small>
         </section>
+        <PatientReview id={data.ingreso.id} fechaNacimiento={data.paciente.fechaNacimiento} financiamiento={data.ingreso.financiamiento} />
+        <DateCorrection id={data.ingreso.id} fechaIngreso={data.ingreso.fechaIngreso} fechaEgreso={data.egreso?.fechaEgreso ?? null} ubicaciones={data.ubicaciones} />
       </div>
     </div>
   );

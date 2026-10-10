@@ -1,0 +1,180 @@
+.page {
+  max-width: 1400px;
+  margin: auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
+}
+.toolbar {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 18px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #dce6e9);
+  border-radius: 12px;
+}
+.toolbar label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+.toolbar input,
+.toolbar select,
+.page textarea {
+  padding: 10px;
+  border: 1px solid var(--border, #dce6e9);
+  border-radius: 8px;
+  font: inherit;
+  background: #fff;
+  color: var(--text, #172b36);
+}
+.page textarea {
+  min-height: 85px;
+  width: 100%;
+  resize: vertical;
+}
+.scroll {
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--border, #dce6e9);
+  border-radius: 12px;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.table th,
+.table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #dce6e9);
+  vertical-align: top;
+}
+.table th {
+  background: #edf5f6;
+  white-space: nowrap;
+}
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.table a {
+  color: var(--primary, #116574);
+  font-weight: 600;
+}
+.notice {
+  padding: 14px 18px;
+  border: 1px solid #c8dfeb;
+  border-radius: 10px;
+  background: #eff7fc;
+  line-height: 1.6;
+}
+.warning {
+  padding: 14px 18px;
+  border: 1px solid #f0d49d;
+  border-radius: 10px;
+  background: #fff8e8;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.card {
+  padding: 18px;
+  border: 1px solid var(--border, #dce6e9);
+  border-radius: 10px;
+  background: #fff;
+}
+.card strong {
+  display: block;
+  font-size: 26px;
+  margin-top: 7px;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.details {
+  padding: 16px;
+  border: 1px solid var(--border, #dce6e9);
+  border-radius: 10px;
+  background: #fff;
+}
+.details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+.empty {
+  padding: 30px;
+  text-align: center;
+  color: var(--muted, #60727b);
+}
+.page ul {
+  padding-left: 20px;
+}
+.page small {
+  display: block;
+  color: var(--muted, #60727b);
+  line-height: 1.5;
+}
+@media (max-width: 600px) {
+  .page {
+    padding: 14px;
+  }
+  .toolbar {
+    padding: 12px;
+  }
+  .toolbar label {
+    width: 100%;
+  }
+  .toolbar input,
+  .toolbar select {
+    width: 100%;
+  }
+}
+@media print {
+  .page {
+    padding: 0;
+    display: block;
+  }
+  .toolbar,
+  .actions {
+    display: none;
+  }
+  .scroll {
+    overflow: visible;
+    border: 0;
+  }
+  .table {
+    font-size: 10px;
+  }
+  .table th,
+  .table td {
+    padding: 5px;
+  }
+  .table tr {
+    break-inside: avoid;
+  }
+  .notice,
+  .warning {
+    font-size: 10px;
+    padding: 8px;
+  }
+  .details pre {
+    max-height: none;
+  }
+  .page h1 {
+    font-size: 20px;
+  }
+}

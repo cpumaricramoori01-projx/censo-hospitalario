@@ -1,3 +1,4 @@
+import { lockCensus, writableEvent } from "@/lib/census-store";
 import { jsonObject } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
         ? identificador(b.servicioDestinoId, "Servicio de destino")
         : null;
     const id = await db.transaction(async (tx) => {
+      await lockCensus(tx);
       const { ingreso, periodo } = await ingresoAbierto(tx, ingresoId);
       let fechaEgreso: Date;
       try {
@@ -49,6 +51,7 @@ export async function POST(request: Request) {
       } catch (e) {
         throw new HttpError((e as Error).message);
       }
+      await writableEvent(tx, fechaEgreso);
       const [doctor] = await tx
         .select()
         .from(medicos)

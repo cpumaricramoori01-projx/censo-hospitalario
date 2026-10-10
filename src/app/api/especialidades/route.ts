@@ -1,3 +1,4 @@
+import { lockCensus, recordCapacity, audit } from "@/lib/census-store";
 import { jsonObject } from "@/lib/validation";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, ne } from "drizzle-orm";
@@ -29,11 +30,12 @@ export async function GET(request: NextRequest) {
 }
 async function guardar(request: Request, editar: boolean) {
   try {
-    await requireWrite(true);
+    const user = await requireWrite(true);
     const b = await jsonObject(request);
     const nombre = texto(b.nombre, "Especialidad", 80);
     const servicioId = identificador(b.servicioId, "Servicio");
     const result = await db.transaction(async (tx) => {
+      await lockCensus(tx);
       const [service] = await tx
         .select()
         .from(servicios)
@@ -58,6 +60,7 @@ async function guardar(request: Request, editar: boolean) {
         const res = await tx
           .insert(especialidades)
           .values({ nombre, servicioId });
+        await audit(tx, user.usuario, "especialidad", String(res[0].insertId), "crear", null, { nombre, servicioId });
         return { id: res[0].insertId, nombre, servicioId };
       }
       const [actual] = await tx
@@ -85,6 +88,9 @@ async function guardar(request: Request, editar: boolean) {
         .update(especialidades)
         .set({ nombre, servicioId })
         .where(eq(especialidades.id, id));
+      const affected = await tx.select({ id: camas.id }).from(camas).where(eq(camas.especialidadId, id)).orderBy(camas.id);
+      for (const bed of affected) await recordCapacity(tx, bed.id, user.usuario, "Cambio administrativo de especialidad");
+      await audit(tx, user.usuario, "especialidad", String(id), "actualizar", actual, { nombre, servicioId });
       return { id, nombre, servicioId };
     });
     return NextResponse.json(result, { status: editar ? 200 : 201 });

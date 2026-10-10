@@ -1,3 +1,4 @@
+import { lockCensus, writableEvent } from "@/lib/census-store";
 import { jsonObject } from "@/lib/validation";
 import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
@@ -78,6 +79,8 @@ export async function POST(request: Request) {
       tieneProblemaSocial: bandera(b.tieneProblemaSocial),
     };
     const id = await db.transaction(async (tx) => {
+      await lockCensus(tx);
+      await writableEvent(tx, fechaIngreso);
       // Crear o bloquear la misma fila de paciente serializa admisiones concurrentes.
       const [existing] = await tx
         .select()
